@@ -1,13 +1,14 @@
+from re import I
 from typing import Any, Dict
 from .constants import ReservedEnvVariableName
 
 
 class Settings:
     """
-    Класс для типизированной работы с настройками из env.json
+    Простой класс для работы с настройками из env.json
     
-    Зарезервированные переменные доступны как атрибуты.
-    Пользовательские переменные доступны через __getattr__.
+    Все переменные (зарезервированные и пользовательские) доступны как атрибуты.
+    Зарезервированные переменные имеют значения по умолчанию.
     """
     
     # Зарезервированные переменные с значениями по умолчанию
@@ -23,7 +24,7 @@ class Settings:
     COMMIT_VERSION: str = ''
     PING_INTERVAL: int = 30
     STATE_SEND_INTERVAL: int = 300
-    
+
     def __init__(self, **kwargs):
         """
         Инициализация настроек
@@ -31,35 +32,9 @@ class Settings:
         Args:
             **kwargs: Словарь с настройками из env.json
         """
-        # Словарь для пользовательских переменных
-        self._custom_variables = {}
-        
-        # Устанавливаем зарезервированные переменные
-        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
-        
+        # Устанавливаем все переменные как атрибуты
         for key, value in kwargs.items():
-            if key in reserved_names:
-                setattr(self, key, value)
-            else:
-                # Пользовательские переменные сохраняем в отдельном словаре
-                self._custom_variables[key] = value
-    
-    def __getattr__(self, name: str) -> Any:
-        """Получает пользовательские переменные как атрибуты"""
-        if name in self._custom_variables:
-            return self._custom_variables[name]
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
-    
-    def __setattr__(self, name: str, value: Any) -> None:
-        """Устанавливает атрибуты"""
-        if name.startswith('_') or name in ReservedEnvVariableName.__dict__.values():
-            # Зарезервированные переменные или служебные атрибуты
-            super().__setattr__(name, value)
-        else:
-            # Пользовательские переменные
-            if not hasattr(self, '_custom_variables'):
-                super().__setattr__('_custom_variables', {})
-            self._custom_variables[name] = value
+            setattr(self, key, value)
     
     def get_reserved_variables(self) -> Dict[str, Any]:
         """Возвращает только зарезервированные переменные"""
@@ -73,30 +48,30 @@ class Settings:
     
     def get_custom_variables(self) -> Dict[str, Any]:
         """Возвращает только пользовательские переменные"""
-        return self._custom_variables.copy()
+        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
+        custom = {}
+        
+        for key, value in self.__dict__.items():
+            if not key.startswith('_') and key not in reserved_names:
+                custom[key] = value
+        return custom
     
     def to_dict(self) -> Dict[str, Any]:
         """Возвращает все настройки в виде словаря"""
-        result = self.get_reserved_variables()
-        result.update(self._custom_variables)
+        result = {}
+        for key, value in self.__dict__.items():
+            if not key.startswith('_'):
+                result[key] = value
         return result
     
     def update(self, **kwargs) -> None:
         """Обновляет настройки"""
-        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
-        
         for key, value in kwargs.items():
-            if key in reserved_names:
-                setattr(self, key, value)
-            else:
-                self._custom_variables[key] = value
+            setattr(self, key, value)
     
     def get(self, key: str, default: Any = None) -> Any:
         """Получает значение настройки по ключу"""
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            return default
+        return getattr(self, key, default)
     
     def __repr__(self) -> str:
         """Строковое представление объекта"""
