@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- tz.md contains tasks that PepeunitClient must solve.
+- example/old_client.py is an old client that the backend used for testing. It essentially provides an example of creating a unit without using the library that is this project.
+- example/old_client.py - its implementation clearly demonstrates some of the mechanics with which Unit interacts. It can be used as an example of interaction interfaces. If it is not clear, you need to check the code to see if it complies with the agreements between Pepeunit Backend and this client. 
