@@ -2,7 +2,6 @@ from enum import Enum
 
 
 class ReservedEnvVariableName:
-    """Constants for reserved environment variables"""
     PEPEUNIT_URL = 'PEPEUNIT_URL'
     HTTP_TYPE = 'HTTP_TYPE'
     PEPEUNIT_APP_PREFIX = 'PEPEUNIT_APP_PREFIX'
@@ -18,7 +17,6 @@ class ReservedEnvVariableName:
 
 
 class LogLevel(Enum):
-    """Log levels"""
     DEBUG = 'Debug'
     INFO = 'Info'
     WARNING = 'Warning'
@@ -26,7 +24,6 @@ class LogLevel(Enum):
     CRITICAL = 'Critical'
 
     def get_int_level(self) -> int:
-        """Returns numeric log level"""
         level_mapping = {
             LogLevel.DEBUG: 0,
             LogLevel.INFO: 1,

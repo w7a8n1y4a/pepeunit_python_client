@@ -11,16 +11,6 @@ from .interfaces import MQTTClientInterface, RESTClientInterface
 
 
 class PepeunitClient:
-    """
-    Main client for working with Pepeunit Unit Storage
-    
-    Supports:
-    - env.json - configuration settings
-    - schema.json - topics schema
-    - log.json - logging
-    - MQTT client (optional)
-    - REST client (optional)
-    """
     
     def __init__(
         self,
@@ -44,7 +34,6 @@ class PepeunitClient:
     
     
     def _log(self, level: LogLevel, message: str) -> None:
-        """Internal logging"""
         log_entry = {
             'level': level.value,
             'text': message,
@@ -66,10 +55,8 @@ class PepeunitClient:
             except Exception as e:
                 print(f"MQTT log send error: {e}")
     
-    # ==================== env.json functions ====================
     
     def update_env_from_file(self, file_path: str) -> None:
-        """Updates env.json from file"""
         try:
             new_env_data = FileManager.load_json_file(Path(file_path))
             self._env_data = new_env_data
@@ -80,7 +67,6 @@ class PepeunitClient:
             self._log(LogLevel.ERROR, f"env.json update error: {e}")
     
     def update_env(self, env_dict: Dict[str, Any]) -> None:
-        """Updates env.json from dictionary"""
         try:
             self._env_data.update(env_dict)
             self.settings.update(**env_dict)
@@ -90,25 +76,19 @@ class PepeunitClient:
             self._log(LogLevel.ERROR, f"env.json update error: {e}")
     
     def get_env_value(self, key: str, default: Any = None) -> Any:
-        """Gets value from env.json by key"""
         return self.settings.get(key, default)
     
     def get_env_data(self) -> Dict[str, Any]:
-        """Gets all data from env.json"""
         return self.settings.to_dict()
     
     def get_reserved_settings(self) -> Dict[str, Any]:
-        """Gets only reserved settings"""
         return self.settings.get_reserved_variables()
     
     def get_custom_settings(self) -> Dict[str, Any]:
-        """Gets only custom settings"""
         return self.settings.get_custom_variables()
     
-    # ==================== schema.json functions ====================
     
     def update_schema_from_file(self, file_path: str) -> None:
-        """Updates schema.json from file"""
         try:
             new_schema_data = FileManager.load_json_file(Path(file_path))
             self._schema_data = new_schema_data
@@ -118,7 +98,6 @@ class PepeunitClient:
             self._log(LogLevel.ERROR, f"schema.json update error: {e}")
     
     def update_schema(self, schema_dict: Dict[str, Any]) -> None:
-        """Updates schema.json from dictionary"""
         try:
             self._schema_data.update(schema_dict)
             FileManager.save_json_file(self.schema_path, self._schema_data)
@@ -127,17 +106,13 @@ class PepeunitClient:
             self._log(LogLevel.ERROR, f"schema.json update error: {e}")
     
     def get_schema_value(self, key: str, default: Any = None) -> Any:
-        """Gets value from schema.json by key"""
         return self._schema_data.get(key, default)
     
     def get_schema_data(self) -> Dict[str, Any]:
-        """Gets all data from schema.json"""
         return self._schema_data.copy()
     
-    # ==================== topics functions ====================
     
     def get_input_topics(self) -> List[str]:
-        """Gets list of all input topics for subscription"""
         input_topics = []
         for topic_type in self._schema_data.keys():
             if 'input' in topic_type:
@@ -149,7 +124,6 @@ class PepeunitClient:
         return input_topics
     
     def get_topic_by_key(self, key: str) -> Optional[str]:
-        """Gets topic by key from schema"""
         for topic_type in self._schema_data.keys():
             if topic_type in ['output_base_topic', 'input_base_topic']:
                 if key in self._schema_data[topic_type]:
@@ -161,7 +135,6 @@ class PepeunitClient:
         return None
     
     def search_topic_in_schema(self, node_uuid: str) -> Optional[tuple[str, str]]:
-        """Searches topic in schema by node_uuid"""
         for topic_type in self._schema_data.keys():
             for topic_name in self._schema_data[topic_type].keys():
                 topics = self._schema_data[topic_type][topic_name]
@@ -175,10 +148,8 @@ class PepeunitClient:
     
     
     
-    # ==================== device state functions ====================
     
     def generate_device_state(self) -> Dict[str, Any]:
-        """Generates device state"""
         try:
             import psutil  # type: ignore
             
@@ -196,7 +167,6 @@ class PepeunitClient:
             
             return state
         except ImportError:
-            # Fallback if psutil is not available
             return {
                 'millis': round(time.time() * 1000),
                 'mem_free': 0,
@@ -213,27 +183,21 @@ class PepeunitClient:
                 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.%fZ', time.gmtime())
             }
     
-    # ==================== logging functions ====================
     
     def save_log(self, level: LogLevel, message: str) -> None:
-        """Saves log to log.json"""
         self._log(level, message)
     
     def get_all_logs(self) -> List[Dict[str, Any]]:
-        """Gets all logs"""
         if isinstance(self._log_data, list):
             return self._log_data.copy()
         return []
     
     def clear_logs(self) -> None:
-        """Clears all logs"""
         self._log_data = []
         FileManager.save_json_file(self.log_path, self._log_data)
     
-    # ==================== MQTT functions (if client provided) ====================
     
     def send_mqtt_message(self, topic: str, message: str) -> bool:
-        """Sends message via MQTT"""
         if not self.mqtt_client:
             self._log(LogLevel.WARNING, "MQTT client not configured")
             return False
@@ -247,7 +211,6 @@ class PepeunitClient:
             return False
     
     def subscribe_to_topics(self, topics: List[str]) -> bool:
-        """Subscribes to topics via MQTT"""
         if not self.mqtt_client:
             self._log(LogLevel.WARNING, "MQTT client not configured")
             return False
@@ -261,7 +224,6 @@ class PepeunitClient:
             return False
     
     def send_log_via_mqtt(self, level: LogLevel, message: str, save_to_file: bool = True) -> bool:
-        """Sends log via MQTT with optional file saving"""
         if not self.mqtt_client:
             if save_to_file:
                 self.save_log(level, message)
@@ -279,7 +241,6 @@ class PepeunitClient:
             'create_datetime': time.strftime('%Y-%m-%dT%H:%M:%S.%fZ', time.gmtime())
         }
         
-        # Save to file if needed
         if save_to_file:
             if isinstance(self._log_data, list):
                 self._log_data.append(log_entry)

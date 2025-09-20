@@ -1,195 +1,129 @@
 # Pepeunit Python Client
 
-Multi-platform library for working with Pepeunit Unit Storage. Supports configuration files, MQTT, REST API and logging.
+Мультиплатформенная библиотека для работы с Pepeunit Unit Storage. Поддерживает конфигурационные файлы, MQTT, REST API и логирование.
 
-## Features
+## Установка
 
-- ✅ Working with `env.json` - configuration settings
-- ✅ Working with `schema.json` - MQTT topics schema
-- ✅ Working with `log.json` - logging
-- ✅ Device state generation
-- ✅ Optional MQTT client support
-- ✅ Optional REST client support
-- ✅ Multi-platform (Python 3.8+)
-
-## Installation
-
-### Basic installation
 ```bash
 pip install pepeunit-client
 ```
 
-### With MQTT support
-```bash
-pip install pepeunit-client[mqtt]
-```
+## Сценарии использования
 
-### With REST support
-```bash
-pip install pepeunit-client[rest]
-```
+### 1. Базовый сценарий (без MQTT и REST)
 
-### Full installation
-```bash
-pip install pepeunit-client[all]
-```
-
-## Quick Start
-
-### Basic usage
+Основной функционал работы с файлами конфигурации и логами:
 
 ```python
 from pepeunit_client import PepeunitClient, LogLevel
 
-# Create client
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json", 
     log_path="logs/log.json"
 )
 
-# Working with configuration
+# Работа с конфигурацией
 client.update_env({"COMMIT_VERSION": "1.0.0"})
 version = client.get_env_value("COMMIT_VERSION")
 
-# Working with logs
-client.save_log(LogLevel.INFO, "Application started")
+# Работа с логами
+client.save_log(LogLevel.INFO, "Приложение запущено")
 
-# Generate device state
+# Генерация состояния устройства
 state = client.generate_device_state()
 ```
 
-### With MQTT support
+### 2. С MQTT клиентом
+
+Добавляет возможность отправки сообщений и подписки на топики:
 
 ```python
 from pepeunit_client import PepeunitClient, LogLevel, MQTTClientInterface
 import paho.mqtt.client as mqtt
 
 class MyMQTTClient(MQTTClientInterface):
-    def __init__(self):
-        self.client = mqtt.Client()
-        # setup connection...
-    
     def publish(self, topic: str, payload: str) -> None:
-        self.client.publish(topic, payload)
+        # реализация публикации
     
     def subscribe(self, topics: list) -> None:
-        for topic in topics:
-            self.client.subscribe(topic)
+        # реализация подписки
 
-# Create client with MQTT
-mqtt_client = MyMQTTClient()
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json",
     log_path="logs/log.json",
-    mqtt_client=mqtt_client
+    mqtt_client=MyMQTTClient()
 )
 
-# Send via MQTT
+# Отправка через MQTT
 client.send_mqtt_message("test/topic", "Hello!")
-client.send_log_via_mqtt(LogLevel.INFO, "Log via MQTT")
+client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
 ```
 
-## API Documentation
+### 3. С REST клиентом
 
-### PepeunitClient
+Добавляет возможность работы с REST API:
 
-#### Initialization
 ```python
-PepeunitClient(
-    env_path: str,                    # Path to env.json
-    schema_path: str,                 # Path to schema.json
-    log_path: str,                    # Path to log.json
-    mqtt_client: MQTTClientInterface = None,  # Optional MQTT client
-    rest_client: RESTClientInterface = None   # Optional REST client
+from pepeunit_client import PepeunitClient, RESTClientInterface
+
+class MyRESTClient(RESTClientInterface):
+    def get(self, url: str, headers: dict = None) -> dict:
+        # реализация GET запроса
+    
+    def post(self, url: str, data: dict = None, headers: dict = None) -> dict:
+        # реализация POST запроса
+
+client = PepeunitClient(
+    env_path="config/env.json",
+    schema_path="config/schema.json",
+    log_path="logs/log.json",
+    rest_client=MyRESTClient()
 )
 ```
 
-#### Working with env.json
-- `update_env(env_dict)` - update from dictionary
-- `update_env_from_file(file_path)` - update from file
-- `get_env_value(key, default)` - get value by key
-- `get_env_data()` - get all data
+### 4. Полный сценарий (MQTT + REST)
 
-#### Working with schema.json
-- `update_schema(schema_dict)` - update from dictionary
-- `update_schema_from_file(file_path)` - update from file
-- `get_schema_value(key, default)` - get value by key
-- `get_schema_data()` - get all data
-
-#### Working with topics
-- `get_input_topics()` - get list of input topics
-- `get_topic_by_key(key)` - get topic by key
-- `search_topic_in_schema(node_uuid)` - find topic by node_uuid
-
-#### Logging
-- `save_log(level, message)` - save log
-- `get_all_logs()` - get all logs
-- `clear_logs()` - clear logs
-
-#### MQTT functions (if client provided)
-- `send_mqtt_message(topic, message)` - send message
-- `subscribe_to_topics(topics)` - subscribe to topics
-- `send_log_via_mqtt(level, message, save_to_file)` - send log via MQTT
-
-#### Other functions
-- `generate_device_state()` - generate device state
-
-### LogLevel
+Объединяет все возможности:
 
 ```python
-LogLevel.DEBUG
-LogLevel.INFO
-LogLevel.WARNING
-LogLevel.ERROR
-LogLevel.CRITICAL
-```
-
-### Settings
-
-Class for typed work with settings from env.json:
-
-```python
-# Create settings
-settings = Settings(
-    PEPEUNIT_URL="api.example.com",
-    MQTT_PORT=1883,
-    CUSTOM_DEBUG=True
+client = PepeunitClient(
+    env_path="config/env.json",
+    schema_path="config/schema.json",
+    log_path="logs/log.json",
+    mqtt_client=MyMQTTClient(),
+    rest_client=MyRESTClient()
 )
-
-# Access to reserved settings
-print(settings.PEPEUNIT_URL)  # "api.example.com"
-print(settings.MQTT_PORT)     # 1883
-
-# Access to custom settings
-print(settings.CUSTOM_DEBUG)  # True
-
-# Get only reserved settings
-reserved = settings.get_reserved_variables()
-
-# Get only custom settings
-custom = settings.get_custom_variables()
-
-# Update settings
-settings.update(PING_INTERVAL=60, CUSTOM_NEW_VALUE=42)
 ```
 
-## Requirements
+## Тестирование
+
+Запуск всех тестов:
+```bash
+pytest tests/
+```
+
+Запуск конкретного теста:
+```bash
+pytest tests/test_pepeunit_client.py::TestPepeunitClientInitialization::test_init_without_clients
+```
+
+Запуск с подробным выводом:
+```bash
+pytest -v tests/
+```
+
+## Требования
 
 - Python 3.8+
-- psutil (optional, for device state generation)
+- psutil (опционально, для генерации состояния устройства)
 
-### Optional dependencies
+### Опциональные зависимости
 
-- `paho-mqtt` - for MQTT support
-- `httpx` - for REST API support
+- `paho-mqtt` - для поддержки MQTT
+- `httpx` - для поддержки REST API
 
-## License
+## Лицензия
 
 AGPL-3.0-or-later
-
-## Support
-
-- Homepage: https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client
-- Issues: https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/issues
