@@ -11,6 +11,125 @@ from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
 
+class ReservedEnvVariableName:
+    """Константы для зарезервированных переменных окружения"""
+    PEPEUNIT_URL = 'PEPEUNIT_URL'
+    HTTP_TYPE = 'HTTP_TYPE'
+    PEPEUNIT_APP_PREFIX = 'PEPEUNIT_APP_PREFIX'
+    PEPEUNIT_API_ACTUAL_PREFIX = 'PEPEUNIT_API_ACTUAL_PREFIX'
+    MQTT_URL = 'MQTT_URL'
+    MQTT_PORT = 'MQTT_PORT'
+    PEPEUNIT_TOKEN = 'PEPEUNIT_TOKEN'
+    SYNC_ENCRYPT_KEY = 'SYNC_ENCRYPT_KEY'
+    SECRET_KEY = 'SECRET_KEY'
+    COMMIT_VERSION = 'COMMIT_VERSION'
+    PING_INTERVAL = 'PING_INTERVAL'
+    STATE_SEND_INTERVAL = 'STATE_SEND_INTERVAL'
+
+
+class Settings:
+    """
+    Класс для типизированной работы с настройками из env.json
+    
+    Зарезервированные переменные доступны как атрибуты.
+    Пользовательские переменные доступны через __getattr__.
+    """
+    
+    # Зарезервированные переменные с значениями по умолчанию
+    PEPEUNIT_URL: str = ''
+    PEPEUNIT_APP_PREFIX: str = ''
+    PEPEUNIT_API_ACTUAL_PREFIX: str = ''
+    HTTP_TYPE: str = 'https'
+    MQTT_URL: str = ''
+    MQTT_PORT: int = 1883
+    PEPEUNIT_TOKEN: str = ''
+    SYNC_ENCRYPT_KEY: str = ''
+    SECRET_KEY: str = ''
+    COMMIT_VERSION: str = ''
+    PING_INTERVAL: int = 30
+    STATE_SEND_INTERVAL: int = 300
+    
+    def __init__(self, **kwargs):
+        """
+        Инициализация настроек
+        
+        Args:
+            **kwargs: Словарь с настройками из env.json
+        """
+        # Словарь для пользовательских переменных
+        self._custom_variables = {}
+        
+        # Устанавливаем зарезервированные переменные
+        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
+        
+        for key, value in kwargs.items():
+            if key in reserved_names:
+                setattr(self, key, value)
+            else:
+                # Пользовательские переменные сохраняем в отдельном словаре
+                self._custom_variables[key] = value
+    
+    def __getattr__(self, name: str) -> Any:
+        """Получает пользовательские переменные как атрибуты"""
+        if name in self._custom_variables:
+            return self._custom_variables[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+    
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Устанавливает атрибуты"""
+        if name.startswith('_') or name in ReservedEnvVariableName.__dict__.values():
+            # Зарезервированные переменные или служебные атрибуты
+            super().__setattr__(name, value)
+        else:
+            # Пользовательские переменные
+            if not hasattr(self, '_custom_variables'):
+                super().__setattr__('_custom_variables', {})
+            self._custom_variables[name] = value
+    
+    def get_reserved_variables(self) -> Dict[str, Any]:
+        """Возвращает только зарезервированные переменные"""
+        reserved = {}
+        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
+        
+        for name in reserved_names:
+            if hasattr(self, name):
+                reserved[name] = getattr(self, name)
+        return reserved
+    
+    def get_custom_variables(self) -> Dict[str, Any]:
+        """Возвращает только пользовательские переменные"""
+        return self._custom_variables.copy()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Возвращает все настройки в виде словаря"""
+        result = self.get_reserved_variables()
+        result.update(self._custom_variables)
+        return result
+    
+    def update(self, **kwargs) -> None:
+        """Обновляет настройки"""
+        reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
+        
+        for key, value in kwargs.items():
+            if key in reserved_names:
+                setattr(self, key, value)
+            else:
+                self._custom_variables[key] = value
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """Получает значение настройки по ключу"""
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            return default
+    
+    def __repr__(self) -> str:
+        """Строковое представление объекта"""
+        reserved = self.get_reserved_variables()
+        custom = self.get_custom_variables()
+        return f"Settings(reserved={len(reserved)}, custom={len(custom)})"
+
+
 class FileManager:
     """Класс для работы с файлами и архивами"""
     
@@ -176,6 +295,9 @@ class PepeunitClient:
         self._env_data = FileManager.load_json_file(self.env_path)
         self._schema_data = FileManager.load_json_file(self.schema_path)
         self._log_data = FileManager.load_json_file(self.log_path)
+        
+        # Создаем объект Settings для типизированной работы с настройками
+        self.settings = Settings(**self._env_data) if isinstance(self._env_data, dict) else Settings()
     
     
     def _log(self, level: LogLevel, message: str) -> None:
@@ -211,6 +333,7 @@ class PepeunitClient:
         try:
             new_env_data = FileManager.load_json_file(Path(file_path))
             self._env_data = new_env_data
+            self.settings = Settings(**new_env_data) if isinstance(new_env_data, dict) else Settings()
             FileManager.save_json_file(self.env_path, self._env_data)
             self._log(LogLevel.INFO, f"env.json обновлен из файла {file_path}")
         except Exception as e:
@@ -220,6 +343,7 @@ class PepeunitClient:
         """Обновляет env.json из словаря"""
         try:
             self._env_data.update(env_dict)
+            self.settings.update(**env_dict)
             FileManager.save_json_file(self.env_path, self._env_data)
             self._log(LogLevel.INFO, "env.json обновлен")
         except Exception as e:
@@ -227,11 +351,19 @@ class PepeunitClient:
     
     def get_env_value(self, key: str, default: Any = None) -> Any:
         """Получает значение из env.json по ключу"""
-        return self._env_data.get(key, default)
+        return self.settings.get(key, default)
     
     def get_env_data(self) -> Dict[str, Any]:
         """Получает все данные из env.json"""
-        return self._env_data.copy()
+        return self.settings.to_dict()
+    
+    def get_reserved_settings(self) -> Dict[str, Any]:
+        """Получает только зарезервированные настройки"""
+        return self.settings.get_reserved_variables()
+    
+    def get_custom_settings(self) -> Dict[str, Any]:
+        """Получает только пользовательские настройки"""
+        return self.settings.get_custom_variables()
     
     # ==================== Функции работы с schema.json ====================
     
@@ -344,7 +476,7 @@ class PepeunitClient:
                 'mem_free': memory_info.available,
                 'mem_alloc': memory_info.total - memory_info.available,
                 'freq': cpu_freq.current if cpu_freq else 0,
-                'commit_version': self.get_env_value('COMMIT_VERSION', 'unknown'),
+                'commit_version': self.settings.COMMIT_VERSION or 'unknown',
                 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.%fZ', time.gmtime())
             }
             
@@ -356,7 +488,7 @@ class PepeunitClient:
                 'mem_free': 0,
                 'mem_alloc': 0,
                 'freq': 0,
-                'commit_version': self.get_env_value('COMMIT_VERSION', 'unknown'),
+                'commit_version': self.settings.COMMIT_VERSION or 'unknown',
                 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.%fZ', time.gmtime())
             }
         except Exception as e:

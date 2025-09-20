@@ -40,7 +40,7 @@ pip install pepeunit-client[all]
 ### Базовое использование
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel, FileManager
+from pepeunit_client import PepeunitClient, LogLevel, FileManager, Settings, ReservedEnvVariableName
 
 # Создаем клиент
 client = PepeunitClient(
@@ -183,6 +183,46 @@ LogLevel.ERROR
 LogLevel.CRITICAL
 ```
 
+### Settings
+
+Класс для типизированной работы с настройками из env.json:
+
+```python
+# Создание настроек
+settings = Settings(
+    PEPEUNIT_URL="api.example.com",
+    MQTT_PORT=1883,
+    CUSTOM_DEBUG=True
+)
+
+# Доступ к зарезервированным настройкам
+print(settings.PEPEUNIT_URL)  # "api.example.com"
+print(settings.MQTT_PORT)     # 1883
+
+# Доступ к пользовательским настройкам
+print(settings.CUSTOM_DEBUG)  # True
+
+# Получение только зарезервированных настроек
+reserved = settings.get_reserved_variables()
+
+# Получение только пользовательских настроек
+custom = settings.get_custom_variables()
+
+# Обновление настроек
+settings.update(PING_INTERVAL=60, CUSTOM_NEW_VALUE=42)
+```
+
+### ReservedEnvVariableName
+
+Константы для зарезервированных переменных окружения:
+
+```python
+ReservedEnvVariableName.PEPEUNIT_URL
+ReservedEnvVariableName.MQTT_URL
+ReservedEnvVariableName.COMMIT_VERSION
+# ... и другие
+```
+
 ### FileManager
 
 Утилитарный класс для работы с файлами и архивами:
@@ -210,6 +250,8 @@ FileManager.copy_update_files("/tmp/source", "/tmp/destination")
 Смотрите папку `examples/` для подробных примеров использования:
 
 - `basic_usage.py` - базовое использование
+- `settings_usage.py` - работа с типизированными настройками
+- `file_manager_usage.py` - работа с файлами и архивами
 - `mqtt_usage.py` - использование с MQTT
 - `rest_usage.py` - использование с REST API
 

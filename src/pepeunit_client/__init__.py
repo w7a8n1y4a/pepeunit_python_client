@@ -10,7 +10,9 @@ from .pepeunit_client import (
     LogLevel,
     MQTTClientInterface,
     RESTClientInterface,
-    FileManager
+    FileManager,
+    Settings,
+    ReservedEnvVariableName
 )
 
 __version__ = "0.9.0"
@@ -22,5 +24,7 @@ __all__ = [
     "LogLevel", 
     "MQTTClientInterface",
     "RESTClientInterface",
-    "FileManager"
+    "FileManager",
+    "Settings",
+    "ReservedEnvVariableName"
 ]
