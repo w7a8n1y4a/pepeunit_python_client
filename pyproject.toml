@@ -1,0 +1,20 @@
+[project]
+name = "pepeunit-client"
+version = "0.9.0"
+authors = [
+  { name="Ivan Serebrennikov", email="admin@silberworks.com" },
+]
+description = "Client for Pepeunit"
+readme = "README.md"
+requires-python = ">=3.10.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+]
+license = "AGPL-3.0-or-later"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client"
+Issues = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/issues"
