@@ -1,6 +1,6 @@
 # Pepeunit Python Client
 
-Мультиплатформенная библиотека для работы с Pepeunit Unit Storage. Поддерживает конфигурационные файлы, MQTT, REST API и логирование.
+Мультиплатформенная библиотека для работы с Pepeunit Unit Storage.
 
 ## Установка
 
@@ -12,15 +12,15 @@ pip install pepeunit-client
 
 ### 1. Базовый сценарий (без MQTT и REST)
 
-Основной функционал работы с файлами конфигурации и логами:
+Работа с конфигурационными файлами и логами:
 
 ```python
 from pepeunit_client import PepeunitClient, LogLevel
 
 client = PepeunitClient(
-    env_path="config/env.json",
-    schema_path="config/schema.json", 
-    log_path="logs/log.json"
+    env_path="env.json",
+    schema_path="schema.json", 
+    log_path="log.json"
 )
 
 # Работа с конфигурацией
@@ -41,7 +41,6 @@ state = client.generate_device_state()
 ```python
 from pepeunit_client import PepeunitClient, LogLevel, MQTTClient
 
-# Создание MQTT клиента на основе paho-mqtt
 mqtt_client = MQTTClient(
     host="mqtt.example.com",
     port=1883,
@@ -49,9 +48,9 @@ mqtt_client = MQTTClient(
 )
 
 client = PepeunitClient(
-    env_path="config/env.json",
-    schema_path="config/schema.json",
-    log_path="logs/log.json",
+    env_path="env.json",
+    schema_path="schema.json",
+    log_path="log.json",
     mqtt_client=mqtt_client
 )
 
@@ -74,7 +73,6 @@ client.subscribe_to_topics(topics)
 ```python
 from pepeunit_client import PepeunitClient, RESTClient
 
-# Создание REST клиента на основе httpx
 rest_client = RESTClient(
     base_url="https://api.example.com",
     headers={"Authorization": "Bearer your-token"},
@@ -82,9 +80,9 @@ rest_client = RESTClient(
 )
 
 client = PepeunitClient(
-    env_path="config/env.json",
-    schema_path="config/schema.json",
-    log_path="logs/log.json",
+    env_path="env.json",
+    schema_path="schema.json",
+    log_path="log.json",
     rest_client=rest_client
 )
 
@@ -102,7 +100,6 @@ response = rest_client.delete("/api/data/1")
 ```python
 from pepeunit_client import PepeunitClient, LogLevel, MQTTClient, RESTClient
 
-# Создание клиентов
 mqtt_client = MQTTClient(
     host="mqtt.example.com",
     port=1883,
@@ -114,11 +111,10 @@ rest_client = RESTClient(
     headers={"Authorization": "Bearer your-token"}
 )
 
-# Создание PepeunitClient с обоими клиентами
 client = PepeunitClient(
-    env_path="config/env.json",
-    schema_path="config/schema.json",
-    log_path="logs/log.json",
+    env_path="env.json",
+    schema_path="schema.json",
+    log_path="log.json",
     mqtt_client=mqtt_client,
     rest_client=rest_client
 )
@@ -134,32 +130,23 @@ response = rest_client.get("/api/status")
 
 ## Тестирование
 
-Запуск всех тестов:
 ```bash
+# Все тесты
 pytest tests/
-```
 
-Запуск конкретного теста:
-```bash
+# Конкретный тест
 pytest tests/test_pepeunit_client.py::TestPepeunitClientInitialization::test_init_without_clients
-```
 
-Запуск с подробным выводом:
-```bash
+# С подробным выводом
 pytest -v tests/
 ```
 
 ## Требования
 
 - Python 3.8+
-- psutil (опционально, для генерации состояния устройства)
+- psutil (опционально)
 
 ### Опциональные зависимости
-
-- `paho-mqtt>=1.6.0` - для поддержки MQTT клиента
-- `httpx>=0.24.0` - для поддержки REST клиента
-
-### Установка с зависимостями
 
 ```bash
 # Только MQTT
@@ -171,15 +158,6 @@ pip install pepeunit-client[rest]
 # Все зависимости
 pip install pepeunit-client[all]
 ```
-
-## Встроенные клиенты
-
-Библиотека включает готовые реализации клиентов:
-
-- **MQTTClient** - MQTT клиент на основе paho-mqtt
-- **RESTClient** - REST клиент на основе httpx
-
-Эти клиенты реализуют соответствующие интерфейсы и готовы к использованию без дополнительной настройки.
 
 ## Лицензия
 

@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 # Add the src directory to Python path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from pepeunit_client import PepeunitClient
 from pepeunit_client.mqtt_client import MQTTClient
@@ -45,9 +45,9 @@ class UnitExample:
         
         # Initialize PepeunitClient
         self.pepeunit_client = PepeunitClient(
-            env_path="env.json",
-            schema_path="schema.json", 
-            log_path="log.json",
+            env_path="../env.json",
+            schema_path="../schema.json", 
+            log_path="../log.json",
             mqtt_client=self.mqtt_client,
             rest_client=self.rest_client
         )
@@ -58,9 +58,9 @@ class UnitExample:
         """Setup MQTT client with callbacks"""
         # Get environment values from the temporary client
         temp_client = PepeunitClient(
-            env_path="env.json",
-            schema_path="schema.json", 
-            log_path="log.json"
+            env_path="../env.json",
+            schema_path="../schema.json", 
+            log_path="../log.json"
         )
         
         def on_connect(client, userdata, flags, rc):
@@ -99,9 +99,9 @@ class UnitExample:
         """Setup REST client"""
         # Get environment values from the temporary client
         temp_client = PepeunitClient(
-            env_path="env.json",
-            schema_path="schema.json", 
-            log_path="log.json"
+            env_path="../env.json",
+            schema_path="../schema.json", 
+            log_path="../log.json"
         )
         
         base_url = f"{temp_client.get_env_value('HTTP_TYPE', 'https')}://{temp_client.get_env_value('PEPEUNIT_URL', 'localhost')}"
