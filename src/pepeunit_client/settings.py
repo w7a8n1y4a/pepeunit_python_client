@@ -1,6 +1,6 @@
 from re import I
 from typing import Any, Dict
-from .constants import ReservedEnvVariableName
+from .enums import ReservedEnvVariableName
 
 
 class Settings:

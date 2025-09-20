@@ -4,7 +4,7 @@ from enum import Enum
 class ReservedEnvVariableName:
     """Константы для зарезервированных переменных окружения"""
     PEPEUNIT_URL = 'PEPEUNIT_URL'
-    HTTP_TYPE = 'HTTP_TYPE'
+    HTTP_TYPE = 'HTTP_TYPE's
     PEPEUNIT_APP_PREFIX = 'PEPEUNIT_APP_PREFIX'
     PEPEUNIT_API_ACTUAL_PREFIX = 'PEPEUNIT_API_ACTUAL_PREFIX'
     MQTT_URL = 'MQTT_URL'
