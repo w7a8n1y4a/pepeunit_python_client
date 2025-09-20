@@ -40,7 +40,7 @@ pip install pepeunit-client[all]
 ### Базовое использование
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel
+from pepeunit_client import PepeunitClient, LogLevel, FileManager
 
 # Создаем клиент
 client = PepeunitClient(
@@ -181,6 +181,28 @@ LogLevel.INFO
 LogLevel.WARNING
 LogLevel.ERROR
 LogLevel.CRITICAL
+```
+
+### FileManager
+
+Утилитарный класс для работы с файлами и архивами:
+
+```python
+# Работа с JSON файлами
+FileManager.save_json_file(Path("config.json"), data)
+data = FileManager.load_json_file(Path("config.json"))
+
+# Определение формата архива
+format = FileManager.get_archive_format("firmware.tar.gz")  # "tgz"
+
+# Распаковка архива
+FileManager.extract_archive("firmware.zip", "/tmp/extract", "zip")
+
+# Подготовка директории обновления
+update_dir = FileManager.prepare_update_directory("unit-uuid")
+
+# Копирование файлов обновления
+FileManager.copy_update_files("/tmp/source", "/tmp/destination")
 ```
 
 ## Примеры

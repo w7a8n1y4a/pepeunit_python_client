@@ -11,6 +11,83 @@ from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 
 
+class FileManager:
+    """Класс для работы с файлами и архивами"""
+    
+    @staticmethod
+    def load_json_file(file_path: Path) -> Union[Dict[str, Any], List[Any]]:
+        """Загружает JSON файл"""
+        try:
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                return {} if file_path.suffix == '.json' else []
+        except Exception as e:
+            print(f"Ошибка загрузки файла {file_path}: {e}")
+            return {} if file_path.suffix == '.json' else []
+    
+    @staticmethod
+    def save_json_file(file_path: Path, data: Union[Dict[str, Any], List[Any]]) -> None:
+        """Сохраняет данные в JSON файл"""
+        try:
+            # Создаем директорию если не существует
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Ошибка сохранения файла {file_path}: {e}")
+    
+    @staticmethod
+    def get_archive_format(file_path: str) -> str:
+        """Определяет формат архива по расширению"""
+        file_path_lower = file_path.lower()
+        
+        # Проверяем двойные расширения сначала
+        if file_path_lower.endswith('.tar.gz'):
+            return 'tgz'
+        elif file_path_lower.endswith('.tgz'):
+            return 'tgz'
+        elif file_path_lower.endswith('.zip'):
+            return 'zip'
+        elif file_path_lower.endswith('.tar'):
+            return 'tar'
+        elif file_path_lower.endswith('.gz'):
+            return 'gztar'
+        else:
+            return 'zip'
+    
+    @staticmethod
+    def extract_archive(file_path: str, extract_path: str, archive_format: str) -> None:
+        """Распаковывает архив"""
+        if archive_format == 'tgz':
+            # Специальная обработка для tgz с zlib
+            with open(file_path, 'rb') as f:
+                producer = zlib.decompressobj(wbits=9)
+                tar_data = producer.decompress(f.read()) + producer.flush()
+                tar_filepath = f'{os.path.dirname(file_path)}/update.tar'
+                with open(tar_filepath, 'wb') as tar_file:
+                    tar_file.write(tar_data)
+                shutil.unpack_archive(tar_filepath, extract_path, 'tar')
+                os.remove(tar_filepath)
+        else:
+            shutil.unpack_archive(file_path, extract_path, archive_format)
+    
+    @staticmethod
+    def prepare_update_directory(unit_uuid: str) -> str:
+        """Подготавливает директорию для обновления"""
+        new_version_path = f'tmp/test_units/{unit_uuid}/update'
+        shutil.rmtree(new_version_path, ignore_errors=True)
+        os.makedirs(new_version_path, exist_ok=True)
+        return new_version_path
+    
+    @staticmethod
+    def copy_update_files(source_path: str, destination_path: str) -> None:
+        """Копирует файлы обновления"""
+        shutil.copytree(source_path, destination_path, dirs_exist_ok=True)
+
+
 class LogLevel(Enum):
     """Уровни логирования"""
     DEBUG = 'Debug'
@@ -96,32 +173,10 @@ class PepeunitClient:
         self.rest_client = rest_client
         
         # Загружаем данные при инициализации
-        self._env_data = self._load_json_file(self.env_path)
-        self._schema_data = self._load_json_file(self.schema_path)
-        self._log_data = self._load_json_file(self.log_path)
+        self._env_data = FileManager.load_json_file(self.env_path)
+        self._schema_data = FileManager.load_json_file(self.schema_path)
+        self._log_data = FileManager.load_json_file(self.log_path)
     
-    def _load_json_file(self, file_path: Path) -> Union[Dict[str, Any], List[Any]]:
-        """Загружает JSON файл"""
-        try:
-            if file_path.exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            else:
-                return {} if file_path.suffix == '.json' else []
-        except Exception as e:
-            self._log(LogLevel.ERROR, f"Ошибка загрузки файла {file_path}: {e}")
-            return {} if file_path.suffix == '.json' else []
-    
-    def _save_json_file(self, file_path: Path, data: Union[Dict[str, Any], List[Any]]) -> None:
-        """Сохраняет данные в JSON файл"""
-        try:
-            # Создаем директорию если не существует
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-        except Exception as e:
-            self._log(LogLevel.ERROR, f"Ошибка сохранения файла {file_path}: {e}")
     
     def _log(self, level: LogLevel, message: str) -> None:
         """Внутреннее логирование"""
@@ -138,7 +193,7 @@ class PepeunitClient:
             self._log_data = [log_entry]
         
         # Сохраняем в файл
-        self._save_json_file(self.log_path, self._log_data)
+        FileManager.save_json_file(self.log_path, self._log_data)
         
         # Отправляем через MQTT если доступен
         if self.mqtt_client and level.get_int_level() >= LogLevel.INFO.get_int_level():
@@ -154,9 +209,9 @@ class PepeunitClient:
     def update_env_from_file(self, file_path: str) -> None:
         """Обновляет env.json из файла по пути"""
         try:
-            new_env_data = self._load_json_file(Path(file_path))
+            new_env_data = FileManager.load_json_file(Path(file_path))
             self._env_data = new_env_data
-            self._save_json_file(self.env_path, self._env_data)
+            FileManager.save_json_file(self.env_path, self._env_data)
             self._log(LogLevel.INFO, f"env.json обновлен из файла {file_path}")
         except Exception as e:
             self._log(LogLevel.ERROR, f"Ошибка обновления env.json: {e}")
@@ -165,7 +220,7 @@ class PepeunitClient:
         """Обновляет env.json из словаря"""
         try:
             self._env_data.update(env_dict)
-            self._save_json_file(self.env_path, self._env_data)
+            FileManager.save_json_file(self.env_path, self._env_data)
             self._log(LogLevel.INFO, "env.json обновлен")
         except Exception as e:
             self._log(LogLevel.ERROR, f"Ошибка обновления env.json: {e}")
@@ -183,9 +238,9 @@ class PepeunitClient:
     def update_schema_from_file(self, file_path: str) -> None:
         """Обновляет schema.json из файла по пути"""
         try:
-            new_schema_data = self._load_json_file(Path(file_path))
+            new_schema_data = FileManager.load_json_file(Path(file_path))
             self._schema_data = new_schema_data
-            self._save_json_file(self.schema_path, self._schema_data)
+            FileManager.save_json_file(self.schema_path, self._schema_data)
             self._log(LogLevel.INFO, f"schema.json обновлен из файла {file_path}")
         except Exception as e:
             self._log(LogLevel.ERROR, f"Ошибка обновления schema.json: {e}")
@@ -194,7 +249,7 @@ class PepeunitClient:
         """Обновляет schema.json из словаря"""
         try:
             self._schema_data.update(schema_dict)
-            self._save_json_file(self.schema_path, self._schema_data)
+            FileManager.save_json_file(self.schema_path, self._schema_data)
             self._log(LogLevel.INFO, "schema.json обновлен")
         except Exception as e:
             self._log(LogLevel.ERROR, f"Ошибка обновления schema.json: {e}")
@@ -252,14 +307,14 @@ class PepeunitClient:
         """Обновляет прошивку устройства по пути до архива"""
         try:
             # Определяем формат архива
-            archive_format = self._get_archive_format(archive_path)
+            archive_format = FileManager.get_archive_format(archive_path)
             
             # Создаем временную директорию для распаковки
             temp_dir = Path(archive_path).parent / "temp_update"
             temp_dir.mkdir(exist_ok=True)
             
             # Распаковываем архив
-            self._extract_archive(archive_path, str(temp_dir), archive_format)
+            FileManager.extract_archive(archive_path, str(temp_dir), archive_format)
             
             # Копируем файлы (здесь должна быть логика копирования в нужное место)
             # Для примера просто логируем
@@ -273,32 +328,6 @@ class PepeunitClient:
             self._log(LogLevel.ERROR, f"Ошибка обновления прошивки: {e}")
             return False
     
-    def _get_archive_format(self, file_path: str) -> str:
-        """Определяет формат архива по расширению"""
-        ext = Path(file_path).suffix.lower()
-        format_mapping = {
-            '.zip': 'zip',
-            '.tar.gz': 'tgz',
-            '.tgz': 'tgz',
-            '.tar': 'tar',
-            '.gz': 'gztar'
-        }
-        return format_mapping.get(ext, 'zip')
-    
-    def _extract_archive(self, file_path: str, extract_path: str, archive_format: str) -> None:
-        """Распаковывает архив"""
-        if archive_format == 'tgz':
-            # Специальная обработка для tgz с zlib
-            with open(file_path, 'rb') as f:
-                producer = zlib.decompressobj(wbits=9)
-                tar_data = producer.decompress(f.read()) + producer.flush()
-                tar_filepath = f'{os.path.dirname(file_path)}/update.tar'
-                with open(tar_filepath, 'wb') as tar_file:
-                    tar_file.write(tar_data)
-                shutil.unpack_archive(tar_filepath, extract_path, 'tar')
-                os.remove(tar_filepath)
-        else:
-            shutil.unpack_archive(file_path, extract_path, archive_format)
     
     # ==================== Функции генерации состояния ====================
     
@@ -353,7 +382,7 @@ class PepeunitClient:
     def clear_logs(self) -> None:
         """Очищает все логи"""
         self._log_data = []
-        self._save_json_file(self.log_path, self._log_data)
+        FileManager.save_json_file(self.log_path, self._log_data)
         self._log(LogLevel.INFO, "Логи очищены")
     
     # ==================== MQTT функции (если клиент передан) ====================
@@ -411,7 +440,7 @@ class PepeunitClient:
                 self._log_data.append(log_entry)
             else:
                 self._log_data = [log_entry]
-            self._save_json_file(self.log_path, self._log_data)
+            FileManager.save_json_file(self.log_path, self._log_data)
         
         return self.send_mqtt_message(topic, json.dumps(log_entry))
     

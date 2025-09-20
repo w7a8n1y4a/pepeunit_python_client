@@ -9,7 +9,8 @@ from .pepeunit_client import (
     PepeunitClient,
     LogLevel,
     MQTTClientInterface,
-    RESTClientInterface
+    RESTClientInterface,
+    FileManager
 )
 
 __version__ = "0.9.0"
@@ -20,5 +21,6 @@ __all__ = [
     "PepeunitClient",
     "LogLevel", 
     "MQTTClientInterface",
-    "RESTClientInterface"
+    "RESTClientInterface",
+    "FileManager"
 ]
