@@ -1,66 +1,65 @@
 # Pepeunit Python Client
 
-Мультиплатформенная библиотека для работы с Pepeunit Unit Storage. Поддерживает работу с конфигурационными файлами, MQTT, REST API и логированием.
+Multi-platform library for working with Pepeunit Unit Storage. Supports configuration files, MQTT, REST API and logging.
 
-## Возможности
+## Features
 
-- ✅ Работа с `env.json` - конфигурационные настройки
-- ✅ Работа с `schema.json` - схема топиков MQTT
-- ✅ Работа с `log.json` - логирование
-- ✅ Обновление прошивки устройства
-- ✅ Генерация состояния устройства
-- ✅ Опциональная поддержка MQTT клиента
-- ✅ Опциональная поддержка REST клиента
-- ✅ Мультиплатформенность (Python 3.8+)
+- ✅ Working with `env.json` - configuration settings
+- ✅ Working with `schema.json` - MQTT topics schema
+- ✅ Working with `log.json` - logging
+- ✅ Device state generation
+- ✅ Optional MQTT client support
+- ✅ Optional REST client support
+- ✅ Multi-platform (Python 3.8+)
 
-## Установка
+## Installation
 
-### Базовая установка
+### Basic installation
 ```bash
 pip install pepeunit-client
 ```
 
-### С MQTT поддержкой
+### With MQTT support
 ```bash
 pip install pepeunit-client[mqtt]
 ```
 
-### С REST поддержкой
+### With REST support
 ```bash
 pip install pepeunit-client[rest]
 ```
 
-### Полная установка
+### Full installation
 ```bash
 pip install pepeunit-client[all]
 ```
 
-## Быстрый старт
+## Quick Start
 
-### Базовое использование
+### Basic usage
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel, FileManager, Settings, ReservedEnvVariableName
+from pepeunit_client import PepeunitClient, LogLevel
 
-# Создаем клиент
+# Create client
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json", 
     log_path="logs/log.json"
 )
 
-# Работа с конфигурацией
+# Working with configuration
 client.update_env({"COMMIT_VERSION": "1.0.0"})
 version = client.get_env_value("COMMIT_VERSION")
 
-# Работа с логами
-client.save_log(LogLevel.INFO, "Приложение запущено")
+# Working with logs
+client.save_log(LogLevel.INFO, "Application started")
 
-# Генерация состояния устройства
+# Generate device state
 state = client.generate_device_state()
 ```
 
-### С MQTT поддержкой
+### With MQTT support
 
 ```python
 from pepeunit_client import PepeunitClient, LogLevel, MQTTClientInterface
@@ -69,7 +68,7 @@ import paho.mqtt.client as mqtt
 class MyMQTTClient(MQTTClientInterface):
     def __init__(self):
         self.client = mqtt.Client()
-        # настройка подключения...
+        # setup connection...
     
     def publish(self, topic: str, payload: str) -> None:
         self.client.publish(topic, payload)
@@ -78,7 +77,7 @@ class MyMQTTClient(MQTTClientInterface):
         for topic in topics:
             self.client.subscribe(topic)
 
-# Создаем клиент с MQTT
+# Create client with MQTT
 mqtt_client = MyMQTTClient()
 client = PepeunitClient(
     env_path="config/env.json",
@@ -87,91 +86,55 @@ client = PepeunitClient(
     mqtt_client=mqtt_client
 )
 
-# Отправка через MQTT
+# Send via MQTT
 client.send_mqtt_message("test/topic", "Hello!")
-client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
+client.send_log_via_mqtt(LogLevel.INFO, "Log via MQTT")
 ```
 
-### С REST поддержкой
-
-```python
-from pepeunit_client import PepeunitClient, RESTClientInterface
-import httpx
-
-class MyRESTClient(RESTClientInterface):
-    def get(self, url: str, headers: dict = None) -> dict:
-        response = httpx.get(url, headers=headers)
-        return response.json()
-    
-    def post(self, url: str, data: dict = None, headers: dict = None) -> dict:
-        response = httpx.post(url, json=data, headers=headers)
-        return response.json()
-
-# Создаем клиент с REST
-rest_client = MyRESTClient()
-client = PepeunitClient(
-    env_path="config/env.json",
-    schema_path="config/schema.json",
-    log_path="logs/log.json",
-    rest_client=rest_client
-)
-
-# Скачивание и обновление
-client.download_and_update_env("https://api.example.com/env")
-client.download_and_update_schema("https://api.example.com/schema")
-client.download_and_update_firmware("https://api.example.com/firmware")
-```
-
-## API Документация
+## API Documentation
 
 ### PepeunitClient
 
-#### Инициализация
+#### Initialization
 ```python
 PepeunitClient(
-    env_path: str,                    # Путь до env.json
-    schema_path: str,                 # Путь до schema.json
-    log_path: str,                    # Путь до log.json
-    mqtt_client: MQTTClientInterface = None,  # Опциональный MQTT клиент
-    rest_client: RESTClientInterface = None   # Опциональный REST клиент
+    env_path: str,                    # Path to env.json
+    schema_path: str,                 # Path to schema.json
+    log_path: str,                    # Path to log.json
+    mqtt_client: MQTTClientInterface = None,  # Optional MQTT client
+    rest_client: RESTClientInterface = None   # Optional REST client
 )
 ```
 
-#### Работа с env.json
-- `update_env(env_dict)` - обновить из словаря
-- `update_env_from_file(file_path)` - обновить из файла
-- `get_env_value(key, default)` - получить значение по ключу
-- `get_env_data()` - получить все данные
+#### Working with env.json
+- `update_env(env_dict)` - update from dictionary
+- `update_env_from_file(file_path)` - update from file
+- `get_env_value(key, default)` - get value by key
+- `get_env_data()` - get all data
 
-#### Работа с schema.json
-- `update_schema(schema_dict)` - обновить из словаря
-- `update_schema_from_file(file_path)` - обновить из файла
-- `get_schema_value(key, default)` - получить значение по ключу
-- `get_schema_data()` - получить все данные
+#### Working with schema.json
+- `update_schema(schema_dict)` - update from dictionary
+- `update_schema_from_file(file_path)` - update from file
+- `get_schema_value(key, default)` - get value by key
+- `get_schema_data()` - get all data
 
-#### Работа с топиками
-- `get_input_topics()` - получить список входных топиков
-- `get_topic_by_key(key)` - получить топик по ключу
-- `search_topic_in_schema(node_uuid)` - найти топик по node_uuid
+#### Working with topics
+- `get_input_topics()` - get list of input topics
+- `get_topic_by_key(key)` - get topic by key
+- `search_topic_in_schema(node_uuid)` - find topic by node_uuid
 
-#### Логирование
-- `save_log(level, message)` - сохранить лог
-- `get_all_logs()` - получить все логи
-- `clear_logs()` - очистить логи
+#### Logging
+- `save_log(level, message)` - save log
+- `get_all_logs()` - get all logs
+- `clear_logs()` - clear logs
 
-#### MQTT функции (если клиент передан)
-- `send_mqtt_message(topic, message)` - отправить сообщение
-- `subscribe_to_topics(topics)` - подписаться на топики
-- `send_log_via_mqtt(level, message, save_to_file)` - отправить лог через MQTT
+#### MQTT functions (if client provided)
+- `send_mqtt_message(topic, message)` - send message
+- `subscribe_to_topics(topics)` - subscribe to topics
+- `send_log_via_mqtt(level, message, save_to_file)` - send log via MQTT
 
-#### REST функции (если клиент передан)
-- `download_and_update_env(url, headers)` - скачать и обновить env.json
-- `download_and_update_schema(url, headers)` - скачать и обновить schema.json
-- `download_and_update_firmware(url, headers)` - скачать и обновить прошивку
-
-#### Другие функции
-- `update_firmware(archive_path)` - обновить прошивку из архива
-- `generate_device_state()` - сгенерировать состояние устройства
+#### Other functions
+- `generate_device_state()` - generate device state
 
 ### LogLevel
 
@@ -185,91 +148,48 @@ LogLevel.CRITICAL
 
 ### Settings
 
-Класс для типизированной работы с настройками из env.json:
+Class for typed work with settings from env.json:
 
 ```python
-# Создание настроек
+# Create settings
 settings = Settings(
     PEPEUNIT_URL="api.example.com",
     MQTT_PORT=1883,
     CUSTOM_DEBUG=True
 )
 
-# Доступ к зарезервированным настройкам
+# Access to reserved settings
 print(settings.PEPEUNIT_URL)  # "api.example.com"
 print(settings.MQTT_PORT)     # 1883
 
-# Доступ к пользовательским настройкам
+# Access to custom settings
 print(settings.CUSTOM_DEBUG)  # True
 
-# Получение только зарезервированных настроек
+# Get only reserved settings
 reserved = settings.get_reserved_variables()
 
-# Получение только пользовательских настроек
+# Get only custom settings
 custom = settings.get_custom_variables()
 
-# Обновление настроек
+# Update settings
 settings.update(PING_INTERVAL=60, CUSTOM_NEW_VALUE=42)
 ```
 
-### ReservedEnvVariableName
-
-Константы для зарезервированных переменных окружения:
-
-```python
-ReservedEnvVariableName.PEPEUNIT_URL
-ReservedEnvVariableName.MQTT_URL
-ReservedEnvVariableName.COMMIT_VERSION
-# ... и другие
-```
-
-### FileManager
-
-Утилитарный класс для работы с файлами и архивами:
-
-```python
-# Работа с JSON файлами
-FileManager.save_json_file(Path("config.json"), data)
-data = FileManager.load_json_file(Path("config.json"))
-
-# Определение формата архива
-format = FileManager.get_archive_format("firmware.tar.gz")  # "tgz"
-
-# Распаковка архива
-FileManager.extract_archive("firmware.zip", "/tmp/extract", "zip")
-
-# Подготовка директории обновления
-update_dir = FileManager.prepare_update_directory("unit-uuid")
-
-# Копирование файлов обновления
-FileManager.copy_update_files("/tmp/source", "/tmp/destination")
-```
-
-## Примеры
-
-Смотрите папку `examples/` для подробных примеров использования:
-
-- `basic_usage.py` - базовое использование
-- `settings_usage.py` - работа с типизированными настройками
-- `file_manager_usage.py` - работа с файлами и архивами
-- `mqtt_usage.py` - использование с MQTT
-- `rest_usage.py` - использование с REST API
-
-## Требования
+## Requirements
 
 - Python 3.8+
-- psutil (опционально, для генерации состояния устройства)
+- psutil (optional, for device state generation)
 
-### Опциональные зависимости
+### Optional dependencies
 
-- `paho-mqtt` - для MQTT поддержки
-- `httpx` - для REST API поддержки
+- `paho-mqtt` - for MQTT support
+- `httpx` - for REST API support
 
-## Лицензия
+## License
 
 AGPL-3.0-or-later
 
-## Поддержка
+## Support
 
-- Домашняя страница: https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client
+- Homepage: https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client
 - Issues: https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/issues

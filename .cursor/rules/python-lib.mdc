@@ -1,0 +1,9 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- Python-style project from the PyPI website
+- Project without examples of use
+- The project contains tests

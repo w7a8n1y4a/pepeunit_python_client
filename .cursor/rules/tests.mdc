@@ -1,0 +1,11 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- The project only has integration tests, and they are written in the tests directory at the root of the project
+- For the tests to work correctly, the Unit settings from the external system, env.json, schema.json, etc. must be specified
+- All tests are built on the principle of one test per check and atomic
+- Tests should use fixtures to the maximum extent possible
+- Tests should cover every method of the PepeunitClient class.

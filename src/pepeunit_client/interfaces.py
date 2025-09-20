@@ -3,28 +3,28 @@ from typing import Any, Dict, List, Optional
 
 
 class MQTTClientInterface(ABC):
-    """Интерфейс для MQTT клиента"""
+    """Interface for MQTT client"""
     
     @abstractmethod
     def publish(self, topic: str, payload: str) -> None:
-        """Отправить сообщение в топик"""
+        """Send message to topic"""
         pass
     
     @abstractmethod
     def subscribe(self, topics: List[str]) -> None:
-        """Подписаться на топики"""
+        """Subscribe to topics"""
         pass
 
 
 class RESTClientInterface(ABC):
-    """Интерфейс для REST клиента"""
+    """Interface for REST client"""
     
     @abstractmethod
     def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Выполнить GET запрос"""
+        """Execute GET request"""
         pass
     
     @abstractmethod
     def post(self, url: str, data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Выполнить POST запрос"""
+        """Execute POST request"""
         pass

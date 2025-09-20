@@ -1,17 +1,16 @@
-from re import I
 from typing import Any, Dict
 from .enums import ReservedEnvVariableName
 
 
 class Settings:
     """
-    Простой класс для работы с настройками из env.json
+    Simple class for working with settings from env.json
     
-    Все переменные (зарезервированные и пользовательские) доступны как атрибуты.
-    Зарезервированные переменные имеют значения по умолчанию.
+    All variables (reserved and custom) are available as attributes.
+    Reserved variables have default values.
     """
     
-    # Зарезервированные переменные с значениями по умолчанию
+    # Reserved variables with default values
     PEPEUNIT_URL: str = ''
     PEPEUNIT_APP_PREFIX: str = ''
     PEPEUNIT_API_ACTUAL_PREFIX: str = ''
@@ -25,19 +24,19 @@ class Settings:
     PING_INTERVAL: int = 30
     STATE_SEND_INTERVAL: int = 300
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         """
-        Инициализация настроек
+        Initialize settings
         
         Args:
-            **kwargs: Словарь с настройками из env.json
+            **kwargs: Dictionary with settings from env.json
         """
-        # Устанавливаем все переменные как атрибуты
+        # Set all variables as attributes
         for key, value in kwargs.items():
             setattr(self, key, value)
     
     def get_reserved_variables(self) -> Dict[str, Any]:
-        """Возвращает только зарезервированные переменные"""
+        """Returns only reserved variables"""
         reserved = {}
         reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
         
@@ -47,7 +46,7 @@ class Settings:
         return reserved
     
     def get_custom_variables(self) -> Dict[str, Any]:
-        """Возвращает только пользовательские переменные"""
+        """Returns only custom variables"""
         reserved_names = {v for v in ReservedEnvVariableName.__dict__.values() if isinstance(v, str)}
         custom = {}
         
@@ -57,7 +56,7 @@ class Settings:
         return custom
     
     def to_dict(self) -> Dict[str, Any]:
-        """Возвращает все настройки в виде словаря"""
+        """Returns all settings as dictionary"""
         result = {}
         for key, value in self.__dict__.items():
             if not key.startswith('_'):
@@ -65,16 +64,16 @@ class Settings:
         return result
     
     def update(self, **kwargs) -> None:
-        """Обновляет настройки"""
+        """Updates settings"""
         for key, value in kwargs.items():
             setattr(self, key, value)
     
     def get(self, key: str, default: Any = None) -> Any:
-        """Получает значение настройки по ключу"""
+        """Gets setting value by key"""
         return getattr(self, key, default)
     
     def __repr__(self) -> str:
-        """Строковое представление объекта"""
+        """String representation of object"""
         reserved = self.get_reserved_variables()
         custom = self.get_custom_variables()
         return f"Settings(reserved={len(reserved)}, custom={len(custom)})"

@@ -1,0 +1,10 @@
+---
+description:ы
+globs:
+alwaysApply: true
+---
+
+- All unnecessary files go to the trash without hesitation.
+- All files that are not needed for the project must be specified in gitignore.
+- All files that are not related to the project are deleted from the project.
+- Any temporary or automatically generated files should never be added to git add.

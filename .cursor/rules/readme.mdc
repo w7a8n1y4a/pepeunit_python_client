@@ -1,0 +1,10 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+- The readme file should be concise, without delving into the program structure of the project
+- A brief explanation of what each of the four scenarios can do is required, starting with the basic one without anything, and each subsequent one should accumulate information from the previous ones
+- Four scenarios for initializing the PepeunitClient class: rest + mqtt, without rest + without mqtt, rest + without mqtt, without rest + mqtt
+- Basic test repetition commands
