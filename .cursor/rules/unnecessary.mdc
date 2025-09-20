@@ -4,7 +4,7 @@ globs:
 alwaysApply: true
 ---
 
-- All unnecessary files go to the trash without hesitation.
-- All files that are not needed for the project must be specified in gitignore.
-- All files that are not related to the project are deleted from the project.
-- Any temporary or automatically generated files should never be added to git add.
+- If files are specified in gitignore and are needed by the project, they are not deleted
+- All files unrelated to the project are deleted from the project
+- No temporary or automatically generated files should be added to git add
+- Environment files are not subject to deletion 

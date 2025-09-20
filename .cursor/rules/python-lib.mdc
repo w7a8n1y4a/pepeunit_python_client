@@ -5,5 +5,5 @@ alwaysApply: true
 ---
 
 - Python-style project from the PyPI website
-- Project without examples of use
+- An example of a Unit that uses all the library's functionality should be located in the example folder and be completely up to date. It should take env.json, schema.json, and log.json from the project root.
 - The project contains tests
