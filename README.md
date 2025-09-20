@@ -39,26 +39,32 @@ state = client.generate_device_state()
 Добавляет возможность отправки сообщений и подписки на топики:
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel, MQTTClientInterface
-import paho.mqtt.client as mqtt
+from pepeunit_client import PepeunitClient, LogLevel, MQTTClient
 
-class MyMQTTClient(MQTTClientInterface):
-    def publish(self, topic: str, payload: str) -> None:
-        # реализация публикации
-    
-    def subscribe(self, topics: list) -> None:
-        # реализация подписки
+# Создание MQTT клиента на основе paho-mqtt
+mqtt_client = MQTTClient(
+    host="mqtt.example.com",
+    port=1883,
+    username="your-token"
+)
 
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json",
     log_path="logs/log.json",
-    mqtt_client=MyMQTTClient()
+    mqtt_client=mqtt_client
 )
+
+# Подключение к MQTT брокеру
+mqtt_client.connect()
 
 # Отправка через MQTT
 client.send_mqtt_message("test/topic", "Hello!")
 client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
+
+# Подписка на топики
+topics = client.get_input_topics()
+client.subscribe_to_topics(topics)
 ```
 
 ### 3. С REST клиентом
@@ -66,21 +72,27 @@ client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
 Добавляет возможность работы с REST API:
 
 ```python
-from pepeunit_client import PepeunitClient, RESTClientInterface
+from pepeunit_client import PepeunitClient, RESTClient
 
-class MyRESTClient(RESTClientInterface):
-    def get(self, url: str, headers: dict = None) -> dict:
-        # реализация GET запроса
-    
-    def post(self, url: str, data: dict = None, headers: dict = None) -> dict:
-        # реализация POST запроса
+# Создание REST клиента на основе httpx
+rest_client = RESTClient(
+    base_url="https://api.example.com",
+    headers={"Authorization": "Bearer your-token"},
+    timeout=30.0
+)
 
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json",
     log_path="logs/log.json",
-    rest_client=MyRESTClient()
+    rest_client=rest_client
 )
+
+# Выполнение HTTP запросов
+response = rest_client.get("/api/data")
+response = rest_client.post("/api/data", json_data={"key": "value"})
+response = rest_client.put("/api/data/1", json_data={"key": "updated"})
+response = rest_client.delete("/api/data/1")
 ```
 
 ### 4. Полный сценарий (MQTT + REST)
@@ -88,13 +100,36 @@ client = PepeunitClient(
 Объединяет все возможности:
 
 ```python
+from pepeunit_client import PepeunitClient, LogLevel, MQTTClient, RESTClient
+
+# Создание клиентов
+mqtt_client = MQTTClient(
+    host="mqtt.example.com",
+    port=1883,
+    username="your-token"
+)
+
+rest_client = RESTClient(
+    base_url="https://api.example.com",
+    headers={"Authorization": "Bearer your-token"}
+)
+
+# Создание PepeunitClient с обоими клиентами
 client = PepeunitClient(
     env_path="config/env.json",
     schema_path="config/schema.json",
     log_path="logs/log.json",
-    mqtt_client=MyMQTTClient(),
-    rest_client=MyRESTClient()
+    mqtt_client=mqtt_client,
+    rest_client=rest_client
 )
+
+# Подключение к MQTT
+mqtt_client.connect()
+
+# Полный функционал доступен
+client.send_mqtt_message("test/topic", "Hello!")
+client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
+response = rest_client.get("/api/status")
 ```
 
 ## Тестирование
@@ -121,8 +156,30 @@ pytest -v tests/
 
 ### Опциональные зависимости
 
-- `paho-mqtt` - для поддержки MQTT
-- `httpx` - для поддержки REST API
+- `paho-mqtt>=1.6.0` - для поддержки MQTT клиента
+- `httpx>=0.24.0` - для поддержки REST клиента
+
+### Установка с зависимостями
+
+```bash
+# Только MQTT
+pip install pepeunit-client[mqtt]
+
+# Только REST
+pip install pepeunit-client[rest]
+
+# Все зависимости
+pip install pepeunit-client[all]
+```
+
+## Встроенные клиенты
+
+Библиотека включает готовые реализации клиентов:
+
+- **MQTTClient** - MQTT клиент на основе paho-mqtt
+- **RESTClient** - REST клиент на основе httpx
+
+Эти клиенты реализуют соответствующие интерфейсы и готовы к использованию без дополнительной настройки.
 
 ## Лицензия
 

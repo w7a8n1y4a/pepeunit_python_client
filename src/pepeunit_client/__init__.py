@@ -10,6 +10,8 @@ from .enums import LogLevel, ReservedEnvVariableName
 from .settings import Settings
 from .file_manager import FileManager
 from .interfaces import MQTTClientInterface, RESTClientInterface
+from .mqtt_client import MQTTClient
+from .rest_client import RESTClient
 
 __version__ = "0.9.0"
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "FileManager",
     "MQTTClientInterface",
     "RESTClientInterface",
+    "MQTTClient",
+    "RESTClient",
 ]
