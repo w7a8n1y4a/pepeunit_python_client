@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pathlib import Path
 
 from .enums import LogLevel
+from .exceptions import PepeunitClientError
 from .settings import Settings
 from .file_manager import FileManager
 from .interfaces import MQTTClientInterface, RESTClientInterface
@@ -36,21 +37,21 @@ class PepeunitClient:
         env_path: str,
         schema_path: str,
         log_path: str,
+        use_mqtt: bool = False,
+        use_rest: bool = False,
+        message_handler: Optional[Callable[[str, str], None]] = None,
         mqtt_client: Optional[MQTTClientInterface] = None,
         rest_client: Optional[RESTClientInterface] = None,
-        message_handler: Optional[Callable[[str, str], None]] = None,
-        use_mqtt: bool = False,
-        use_rest: bool = False
     ) -> None:
         self.env_path = Path(env_path)
         self.schema_path = Path(schema_path)
         self.log_path = Path(log_path)
         self.message_handler = message_handler
-        
+
         self._env_data = FileManager.load_json_file(self.env_path)
         self._schema_data = FileManager.load_json_file(self.schema_path)
         self._log_data = FileManager.load_json_file(self.log_path)
-        
+
         self.settings = Settings(**self._env_data) if isinstance(self._env_data, dict) else Settings()
         self.schema = Schema(self._schema_data)
         
@@ -280,18 +281,8 @@ class PepeunitClient:
         except Exception as e:
             self._log(LogLevel.ERROR, f"env.json update error: {e}")
     
-    def get_env_value(self, key: str, default: Any = None) -> Any:
-        return self.settings.get(key, default)
-    
     def get_env_data(self) -> Dict[str, Any]:
-        return self.settings.to_dict()
-    
-    def get_reserved_settings(self) -> Dict[str, Any]:
-        return self.settings.get_reserved_variables()
-    
-    def get_custom_settings(self) -> Dict[str, Any]:
-        return self.settings.get_custom_variables()
-    
+        return self._env_data
     
     def update_schema_from_file(self, file_path: str) -> None:
         try:
