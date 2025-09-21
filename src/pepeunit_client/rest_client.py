@@ -13,7 +13,6 @@ except ImportError:
 
 
 class RESTClient(RESTClientInterface):
-    """Реализация REST клиента на основе httpx"""
     
     def __init__(self, timeout: int = 30):
         if not REST_AVAILABLE:
@@ -23,17 +22,14 @@ class RESTClient(RESTClientInterface):
         self.client = httpx.Client(timeout=timeout)
     
     def __del__(self):
-        """Закрытие клиента при удалении объекта"""
         if hasattr(self, 'client'):
             self.client.close()
     
     def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """GET запрос"""
         try:
             response = self.client.get(url, headers=headers)
             response.raise_for_status()
             
-            # Пытаемся разобрать как JSON, если не получается - возвращаем текст
             try:
                 return response.json()
             except json.JSONDecodeError:
@@ -49,7 +45,6 @@ class RESTClient(RESTClientInterface):
     
     def post(self, url: str, data: Optional[Dict[str, Any]] = None, 
              headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """POST запрос"""
         try:
             response = self.client.post(url, json=data, headers=headers)
             response.raise_for_status()
@@ -69,7 +64,6 @@ class RESTClient(RESTClientInterface):
     
     def put(self, url: str, data: Optional[Dict[str, Any]] = None,
             headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """PUT запрос"""
         try:
             response = self.client.put(url, json=data, headers=headers)
             response.raise_for_status()
@@ -88,7 +82,6 @@ class RESTClient(RESTClientInterface):
                 raise PepeunitClientError(f"Unexpected error during PUT request: {e}")
     
     def delete(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """DELETE запрос"""
         try:
             response = self.client.delete(url, headers=headers)
             response.raise_for_status()
@@ -108,7 +101,6 @@ class RESTClient(RESTClientInterface):
     
     def download_file(self, url: str, file_path: str, 
                      headers: Optional[Dict[str, str]] = None) -> None:
-        """Скачивание файла"""
         try:
             with self.client.stream('GET', url, headers=headers) as response:
                 response.raise_for_status()
@@ -129,7 +121,6 @@ class RESTClient(RESTClientInterface):
 
 
 class DummyRESTClient(RESTClientInterface):
-    """Заглушка REST клиента для случаев, когда REST не используется"""
     
     def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")

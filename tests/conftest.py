@@ -1,7 +1,3 @@
-"""
-Конфигурация для pytest тестов
-"""
-
 import json
 import os
 import tempfile
@@ -11,14 +7,12 @@ from typing import Dict, Any
 
 @pytest.fixture
 def temp_dir():
-    """Временная директория для тестов"""
     with tempfile.TemporaryDirectory() as temp_dir:
         yield temp_dir
 
 
 @pytest.fixture
 def sample_env_data() -> Dict[str, Any]:
-    """Тестовые данные для env.json"""
     return {
         "PEPEUNIT_URL": "api.pepeunit.dev",
         "PEPEUNIT_APP_PREFIX": "/app",
@@ -37,7 +31,6 @@ def sample_env_data() -> Dict[str, Any]:
 
 @pytest.fixture
 def sample_schema_data() -> Dict[str, Any]:
-    """Тестовые данные для schema.json"""
     return {
         "input_base_topic": {
             "update/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/update"],
@@ -60,7 +53,6 @@ def sample_schema_data() -> Dict[str, Any]:
 
 @pytest.fixture
 def sample_log_data() -> list:
-    """Тестовые данные для log.json"""
     return [
         {
             "level": "Info",
@@ -77,12 +69,10 @@ def sample_log_data() -> list:
 
 @pytest.fixture
 def test_files(temp_dir, sample_env_data, sample_schema_data, sample_log_data):
-    """Создание тестовых файлов"""
     env_path = os.path.join(temp_dir, "env.json")
     schema_path = os.path.join(temp_dir, "schema.json")
     log_path = os.path.join(temp_dir, "log.json")
     
-    # Создаем файлы
     with open(env_path, 'w') as f:
         json.dump(sample_env_data, f)
     
@@ -102,7 +92,6 @@ def test_files(temp_dir, sample_env_data, sample_schema_data, sample_log_data):
 
 @pytest.fixture
 def mock_mqtt_client():
-    """Мок MQTT клиента для тестов"""
     class MockMQTTClient:
         def __init__(self):
             self.is_connected = False
@@ -142,7 +131,6 @@ def mock_mqtt_client():
 
 @pytest.fixture
 def mock_rest_client():
-    """Мок REST клиента для тестов"""
     class MockRESTClient:
         def __init__(self):
             self.requests = []
@@ -165,7 +153,6 @@ def mock_rest_client():
         
         def download_file(self, url, file_path, headers=None):
             self.requests.append(('DOWNLOAD', url, file_path, headers))
-            # Создаем фиктивный файл
             with open(file_path, 'w') as f:
                 f.write("test file content")
     

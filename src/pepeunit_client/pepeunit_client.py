@@ -24,7 +24,6 @@ from .enums import LogLevel
 
 
 class PepeunitClient:
-    """Основной клиент для работы с Pepeunit"""
     
     def __init__(
         self,
@@ -37,49 +36,28 @@ class PepeunitClient:
         rest_client: Optional[RESTClientInterface] = None,
         message_handler: Optional[Callable] = None
     ):
-        """
-        Инициализация PepeunitClient
-        
-        Args:
-            env_path: Путь к файлу env.json
-            schema_path: Путь к файлу schema.json  
-            log_path: Путь к файлу log.json
-            mqtt_enabled: Включить MQTT функциональность
-            rest_enabled: Включить REST функциональность
-            mqtt_client: Экземпляр MQTT клиента (опционально)
-            rest_client: Экземпляр REST клиента (опционально)
-            message_handler: Функция-обработчик MQTT сообщений
-        """
-        
-        # Инициализация флагов и логгера сначала
         self.mqtt_enabled = mqtt_enabled
         self.rest_enabled = rest_enabled
         
-        # Настройка логирования
         logging.basicConfig(level=logging.CRITICAL)
         self.logger = logging.getLogger(__name__)
         
-        # Инициализация файлового менеджера
         self.file_manager = PepeunitFileManager(env_path, schema_path, log_path)
         
-        # Загрузка настроек и схемы
         self._load_settings()
         self._load_schema()
         
         self.mqtt_client = mqtt_client or self._create_mqtt_client()
         self.rest_client = rest_client or self._create_rest_client()
         
-        # Обработчик сообщений
         self.message_handler = message_handler
         if self.message_handler and self.mqtt_client:
             self.mqtt_client.set_message_handler(self._internal_message_handler)
         
-        # Таймеры для периодических задач
         self._state_timer: Optional[threading.Timer] = None
         self._is_running = False
     
     def _load_settings(self) -> None:
-        """Загрузка настроек из env.json"""
         try:
             env_data = self.file_manager.get_env_values()
             self.settings = Settings(**env_data)
@@ -88,7 +66,6 @@ class PepeunitClient:
             self.settings = Settings()
     
     def _load_schema(self) -> None:
-        """Загрузка схемы из schema.json"""
         try:
             schema_data = self.file_manager.get_schema_values()
             self.schema = Schema(schema_data)
@@ -97,7 +74,6 @@ class PepeunitClient:
             self.schema = Schema({})
     
     def _create_mqtt_client(self) -> MQTTClientInterface:
-        """Создание MQTT клиента"""
         if not self.mqtt_enabled:
             return DummyMQTTClient()
         
@@ -113,7 +89,6 @@ class PepeunitClient:
             return DummyMQTTClient()
     
     def _create_rest_client(self) -> RESTClientInterface:
-        """Создание REST клиента"""
         if not self.rest_enabled:
             return DummyRESTClient()
         
@@ -125,19 +100,17 @@ class PepeunitClient:
     
     @property
     def unit_uuid(self) -> str:
-        """Получение unit_uuid из JWT токена"""
         try:
             if not self.settings.PEPEUNIT_TOKEN:
                 return ""
             
-            # Разбираем JWT токен
+            
             parts = self.settings.PEPEUNIT_TOKEN.split('.')
             if len(parts) != 3:
                 return ""
             
-            # Декодируем центральную часть (payload)
             payload = parts[1]
-            # Добавляем padding если нужно
+            
             payload += '=' * (4 - len(payload) % 4)
             
             decoded = base64.b64decode(payload)
@@ -150,10 +123,9 @@ class PepeunitClient:
             return ""
     
     def refresh_settings(self) -> None:
-        """Динамическое обновление settings"""
+        
         try:
             self._load_settings()
-            # Пересоздаем клиентов с новыми настройками
             if self.mqtt_enabled:
                 self.mqtt_client = self._create_mqtt_client()
                 if self.message_handler:
@@ -162,11 +134,11 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error refreshing settings: {e}")
     
     def get_subscription_topics(self) -> List[str]:
-        """Получение набора топиков для подписки из schema.json"""
+        
         return self.schema.get_input_topics()
     
     def update_device_program(self, archive_path: str) -> None:
-        """Обновление программы устройства"""
+        
         try:
             self.file_manager.update_device_program(archive_path)
             self.refresh_settings()
@@ -176,7 +148,7 @@ class PepeunitClient:
             raise
     
     def get_system_state(self) -> Dict[str, Any]:
-        """Генерация состояния устройства"""
+        
         try:
             state = {
                 'millis': round(time.time() * 1000),
@@ -212,7 +184,7 @@ class PepeunitClient:
             }
     
     def log(self, level: LogLevel, message: str) -> None:
-        """Логирование с сохранением в log.json и отправкой по MQTT"""
+        
         try:
             log_entry = {
                 'level': level.value,
@@ -220,10 +192,8 @@ class PepeunitClient:
                 'create_datetime': datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
             
-            # Сохраняем в файл
             self.file_manager.append_log_entry(log_entry)
             
-            # Отправляем по MQTT если есть клиент и топик
             if (self.mqtt_enabled and 
                 hasattr(self.mqtt_client, 'is_connected') and 
                 self.mqtt_client.is_connected):
@@ -236,17 +206,15 @@ class PepeunitClient:
                         pass  # Не логируем ошибки отправки лога
                         
         except Exception as e:
-            # Критические ошибки логирования выводим в консоль
             self.logger.critical(f"Critical logging error: {e}")
     
     def get_full_log(self) -> List[Dict[str, Any]]:
-        """Получение полного лога из log.json"""
+        
         return self.file_manager.get_full_log()
     
-    # Работа с файлами
     
     def update_env_file(self, new_env_path: str) -> None:
-        """Обновление env.json из нового файла"""
+        
         try:
             self.file_manager.update_env_file(new_env_path)
             self.refresh_settings()
@@ -256,11 +224,11 @@ class PepeunitClient:
             raise
     
     def get_env_values(self) -> Dict[str, Any]:
-        """Получение значений из env.json"""
+        
         return self.file_manager.get_env_values()
     
     def update_schema_file(self, new_schema_path: str) -> None:
-        """Обновление schema.json из нового файла"""
+        
         try:
             self.file_manager.update_schema_file(new_schema_path)
             self._load_schema()
@@ -270,11 +238,11 @@ class PepeunitClient:
             raise
     
     def get_schema_values(self) -> Dict[str, Any]:
-        """Получение значений из schema.json"""
+        
         return self.file_manager.get_schema_values()
     
     def update_log_file(self, new_log_path: str) -> None:
-        """Обновление log.json из нового файла"""
+        
         try:
             self.file_manager.update_log_file(new_log_path)
             self.log(LogLevel.INFO, f"Log file updated from {new_log_path}")
@@ -282,10 +250,9 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error updating log file: {e}")
             raise
     
-    # MQTT функциональность
     
     def connect_mqtt(self) -> None:
-        """Подключение к MQTT"""
+        
         if not self.mqtt_enabled:
             raise PepeunitClientError("MQTT is not enabled")
         
@@ -293,7 +260,6 @@ class PepeunitClient:
             self.mqtt_client.connect()
             self.mqtt_client.start_loop()
             
-            # Автоподписка на входные топики
             topics = self.get_subscription_topics()
             if topics:
                 self.mqtt_client.subscribe(topics)
@@ -305,7 +271,7 @@ class PepeunitClient:
             raise
     
     def disconnect_mqtt(self) -> None:
-        """Отключение от MQTT"""
+        
         if self.mqtt_client:
             try:
                 self.mqtt_client.stop_loop()
@@ -315,12 +281,11 @@ class PepeunitClient:
                 self.log(LogLevel.ERROR, f"Error disconnecting from MQTT: {e}")
     
     def publish_to_topic(self, topic_key: str, message: str) -> None:
-        """Отправка сообщений в топик по ключу из schema"""
+        
         if not self.mqtt_enabled:
             raise PepeunitClientError("MQTT is not enabled")
         
         try:
-            # Получаем топики из output_topic
             topics = self.schema.output_topic.get(topic_key, [])
             if not topics:
                 raise PepeunitClientError(f"Topic key '{topic_key}' not found in output_topic")
@@ -335,12 +300,11 @@ class PepeunitClient:
             raise
     
     def subscribe_to_topics(self, topic_key: str) -> None:
-        """Подписка на топики по ключу из schema"""
+        
         if not self.mqtt_enabled:
             raise PepeunitClientError("MQTT is not enabled")
         
         try:
-            # Получаем топики из input_topic
             topics = self.schema.input_topic.get(topic_key, [])
             if not topics:
                 raise PepeunitClientError(f"Topic key '{topic_key}' not found in input_topic")
@@ -353,7 +317,7 @@ class PepeunitClient:
             raise
     
     def start_state_publishing(self) -> None:
-        """Запуск периодической отправки состояния"""
+        
         if not self.mqtt_enabled:
             return
         
@@ -362,7 +326,7 @@ class PepeunitClient:
             self._schedule_state_publishing()
     
     def _schedule_state_publishing(self) -> None:
-        """Планирование следующей отправки состояния"""
+        
         if not self._is_running:
             return
             
@@ -373,7 +337,6 @@ class PepeunitClient:
             if state_topic:
                 self.mqtt_client.publish(state_topic, json.dumps(state))
             
-            # Планируем следующую отправку
             self._state_timer = threading.Timer(
                 self.settings.STATE_SEND_INTERVAL,
                 self._schedule_state_publishing
@@ -383,10 +346,9 @@ class PepeunitClient:
         except Exception as e:
             self.log(LogLevel.ERROR, f"Error in state publishing: {e}")
     
-    # REST функциональность
     
     def download_update(self) -> str:
-        """Скачивание архива обновления через REST"""
+        
         if not self.rest_enabled:
             raise PepeunitClientError("REST is not enabled")
         
@@ -394,7 +356,6 @@ class PepeunitClient:
             url = self._build_api_url(f"/units/firmware/tgz/{self.unit_uuid}")
             headers = self._get_auth_headers()
             
-            # Скачиваем во временный файл
             temp_path = f"/tmp/update_{self.unit_uuid}.tar.gz"
             self.rest_client.download_file(url, temp_path, headers)
             
@@ -406,7 +367,7 @@ class PepeunitClient:
             raise
     
     def download_env(self) -> str:
-        """Скачивание env.json"""
+        
         if not self.rest_enabled:
             raise PepeunitClientError("REST is not enabled")
         
@@ -416,7 +377,6 @@ class PepeunitClient:
             
             response = self.rest_client.get(url, headers)
             
-            # Сохраняем во временный файл
             temp_path = f"/tmp/env_{self.unit_uuid}.json"
             with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(response, f, indent=4, ensure_ascii=False)
@@ -429,7 +389,7 @@ class PepeunitClient:
             raise
     
     def download_schema(self) -> str:
-        """Скачивание schema.json"""
+        
         if not self.rest_enabled:
             raise PepeunitClientError("REST is not enabled")
         
@@ -439,7 +399,6 @@ class PepeunitClient:
             
             response = self.rest_client.get(url, headers)
             
-            # Сохраняем во временный файл
             temp_path = f"/tmp/schema_{self.unit_uuid}.json"
             with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(response, f, indent=4, ensure_ascii=False)
@@ -452,7 +411,7 @@ class PepeunitClient:
             raise
     
     def set_state_storage(self, uuid: str, state: Dict[str, Any]) -> None:
-        """Загрузка в Pepeunit Unit Storage"""
+        
         if not self.rest_enabled:
             raise PepeunitClientError("REST is not enabled")
         
@@ -468,7 +427,7 @@ class PepeunitClient:
             raise
     
     def get_state_storage(self, uuid: str) -> Dict[str, Any]:
-        """Получение из Pepeunit Unit Storage"""
+        
         if not self.rest_enabled:
             raise PepeunitClientError("REST is not enabled")
         
@@ -484,21 +443,17 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error getting state storage: {e}")
             raise
     
-    # Полный цикл обновления (MQTT + REST)
     
     def perform_update(self) -> None:
-        """Полный цикл обновления: скачивание и установка"""
+        
         if not (self.mqtt_enabled and self.rest_enabled):
             raise PepeunitClientError("Both MQTT and REST must be enabled for perform_update")
         
         try:
-            # Скачиваем архив обновления
             archive_path = self.download_update()
             
-            # Обновляем программу
             self.update_device_program(archive_path)
             
-            # Удаляем временный файл
             os.remove(archive_path)
             
             self.log(LogLevel.INFO, "Update completed successfully")
@@ -507,28 +462,25 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error performing update: {e}")
             raise
     
-    # Вспомогательные методы
     
     def _build_api_url(self, endpoint: str) -> str:
-        """Построение URL для API"""
+        
         return (f"{self.settings.HTTP_TYPE}://{self.settings.PEPEUNIT_URL}"
                 f"{self.settings.PEPEUNIT_APP_PREFIX}"
                 f"{self.settings.PEPEUNIT_API_ACTUAL_PREFIX}{endpoint}")
     
     def _get_auth_headers(self) -> Dict[str, str]:
-        """Получение заголовков авторизации"""
+        
         return {
             'accept': 'application/json',
             'x-auth-token': self.settings.PEPEUNIT_TOKEN,
         }
     
     def _internal_message_handler(self, client, userdata, msg) -> None:
-        """Внутренний обработчик MQTT сообщений"""
+        
         try:
-            # Обработка служебных сообщений
             self._handle_system_messages(client, userdata, msg)
             
-            # Вызов пользовательского обработчика
             if self.message_handler:
                 self.message_handler(client, userdata, msg)
                 
@@ -536,13 +488,11 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error in message handler: {e}")
     
     def _handle_system_messages(self, client, userdata, msg) -> None:
-        """Обработка системных сообщений"""
+        
         try:
             topic_parts = msg.topic.split('/')
             
-            # Проверяем структуру топика
             if len(topic_parts) >= 3:
-                # Ищем в схеме
                 result = self.schema.search_topic_in_schema(self.unit_uuid)
                 if result:
                     topic_type, topic_name = result
@@ -554,7 +504,7 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error handling system message: {e}")
     
     def _handle_base_topic_message(self, topic_name: str, msg) -> None:
-        """Обработка сообщений base топиков"""
+        
         try:
             if topic_name == 'update/pepeunit' and self.rest_enabled:
                 self.perform_update()
@@ -578,10 +528,9 @@ class PepeunitClient:
         except Exception as e:
             self.log(LogLevel.ERROR, f"Error handling base topic message {topic_name}: {e}")
     
-    # Управление жизненным циклом
     
     def start(self) -> None:
-        """Запуск клиента"""
+        
         try:
             self._is_running = True
             
@@ -596,15 +545,13 @@ class PepeunitClient:
             raise
     
     def stop(self) -> None:
-        """Остановка клиента"""
+        
         try:
             self._is_running = False
             
-            # Останавливаем таймер состояния
             if self._state_timer:
                 self._state_timer.cancel()
             
-            # Отключаемся от MQTT
             if self.mqtt_enabled:
                 self.disconnect_mqtt()
             
@@ -614,10 +561,10 @@ class PepeunitClient:
             self.log(LogLevel.ERROR, f"Error stopping client: {e}")
     
     def __enter__(self):
-        """Контекстный менеджер - вход"""
+        
         self.start()
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Контекстный менеджер - выход"""
+        
         self.stop()

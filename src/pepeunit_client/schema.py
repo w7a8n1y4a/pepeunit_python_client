@@ -2,37 +2,30 @@ from typing import Any, Dict, List, Optional
 
 
 class Schema:
-    """Класс для работы с schema.json, предоставляющий доступ к топикам в 4 форматах"""
     
     def __init__(self, schema_data: Dict[str, Any]):
         self._schema_data = schema_data
     
     def update(self, schema_data: Dict[str, Any]) -> None:
-        """Обновление данных схемы"""
         self._schema_data = schema_data
     
     @property
     def input_base_topic(self) -> Dict[str, List[str]]:
-        """Доступ к input_base_topic как к словарю"""
         return self._schema_data.get('input_base_topic', {})
     
     @property
     def output_base_topic(self) -> Dict[str, List[str]]:
-        """Доступ к output_base_topic как к словарю"""
         return self._schema_data.get('output_base_topic', {})
     
     @property
     def input_topic(self) -> Dict[str, List[str]]:
-        """Доступ к input_topic как к словарю"""
         return self._schema_data.get('input_topic', {})
     
     @property
     def output_topic(self) -> Dict[str, List[str]]:
-        """Доступ к output_topic как к словарю"""
         return self._schema_data.get('output_topic', {})
     
     def get_topic_by_key(self, key: str) -> Optional[str]:
-        """Получение первого топика по ключу из base_topic"""
         for topic_type in ['output_base_topic', 'input_base_topic']:
             if key in self._schema_data.get(topic_type, {}):
                 topics = self._schema_data[topic_type][key]
@@ -43,7 +36,6 @@ class Schema:
         return None
     
     def get_input_topics(self) -> List[str]:
-        """Получение всех input топиков для подписки"""
         input_topics = []
         for topic_type in self._schema_data.keys():
             if 'input' in topic_type:
@@ -56,7 +48,6 @@ class Schema:
         return input_topics
     
     def search_topic_in_schema(self, node_uuid: str) -> Optional[tuple[str, str]]:
-        """Поиск топика по node_uuid в схеме"""
         for topic_type in self._schema_data.keys():
             for topic_name in self._schema_data[topic_type].keys():
                 topics = self._schema_data[topic_type][topic_name]

@@ -1,14 +1,3 @@
-"""
-PepeunitClient - Мультиплатформенная библиотека для работы с Pepeunit Unit Storage
-
-Основные компоненты:
-- PepeunitClient: Основной клиент для работы с Pepeunit
-- Settings: Класс для работы с настройками
-- Schema: Класс для работы с MQTT топиками
-- LogLevel: Уровни логирования
-- Исключения: PepeunitClientError
-"""
-
 from .pepeunit_client import PepeunitClient
 from .settings import Settings
 from .schema import Schema
