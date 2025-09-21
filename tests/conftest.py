@@ -1,168 +1,172 @@
 """
-Test configuration and fixtures for PepeunitClient integration tests.
+Конфигурация для pytest тестов
 """
 
 import json
+import os
 import tempfile
-from pathlib import Path
-from typing import Dict, Any
-
 import pytest
-
-from pepeunit_client import PepeunitClient, LogLevel
+from typing import Dict, Any
 
 
 @pytest.fixture
 def temp_dir():
-    """Create temporary directory for test files."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield Path(tmp_dir)
+    """Временная директория для тестов"""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield temp_dir
 
 
 @pytest.fixture
-def env_data() -> Dict[str, Any]:
-    """Sample environment data for testing."""
+def sample_env_data() -> Dict[str, Any]:
+    """Тестовые данные для env.json"""
     return {
-        "PEPEUNIT_URL": "https://test.example.com",
-        "HTTP_TYPE": "https",
+        "PEPEUNIT_URL": "api.pepeunit.dev",
         "PEPEUNIT_APP_PREFIX": "/app",
         "PEPEUNIT_API_ACTUAL_PREFIX": "/api/v1",
-        "MQTT_URL": "test.mqtt.example.com",
+        "HTTP_TYPE": "https",
+        "MQTT_URL": "mqtt.pepeunit.dev",
         "MQTT_PORT": 1883,
-        "PEPEUNIT_TOKEN": "test_token_123",
+        "PEPEUNIT_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1dWlkIjoiMTIzNDU2NzgtYWJjZC1lZmdoLWlqa2wtbW5vcHFyc3R1dnd4Iiwic3ViIjoiMTIzNDU2NzgwIiwibmFtZSI6IlRlc3QgVW5pdCIsImlhdCI6MTUxNjIzOTAyMn0.test_signature",
         "SYNC_ENCRYPT_KEY": "test_encrypt_key",
         "SECRET_KEY": "test_secret_key",
-        "COMMIT_VERSION": "test_commit_123",
+        "COMMIT_VERSION": "v1.0.0",
         "PING_INTERVAL": 30,
-        "STATE_SEND_INTERVAL": 300,
-        "CUSTOM_SETTING": "custom_value"
+        "STATE_SEND_INTERVAL": 300
     }
 
 
 @pytest.fixture
-def schema_data() -> Dict[str, Any]:
-    """Sample schema data for testing."""
+def sample_schema_data() -> Dict[str, Any]:
+    """Тестовые данные для schema.json"""
     return {
-        "output_base_topic": {
-            "log/pepeunit": "pepeunit/logs",
-            "state/device": "pepeunit/state"
-        },
         "input_base_topic": {
-            "commands": "pepeunit/commands",
-            "config": "pepeunit/config"
+            "update/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/update"],
+            "env_update/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/env_update"],
+            "schema_update/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/schema_update"],
+            "log_sync/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/log_sync"]
+        },
+        "output_base_topic": {
+            "state/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/state"],
+            "log/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/log"]
+        },
+        "input_topic": {
+            "input/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/input"]
+        },
+        "output_topic": {
+            "output/pepeunit": ["devunit.pepeunit.com/12345678-abcd-efgh-ijkl-mnopqrstuvwx/output"]
         }
     }
 
 
 @pytest.fixture
-def log_data() -> list:
-    """Sample log data for testing."""
-    return []
+def sample_log_data() -> list:
+    """Тестовые данные для log.json"""
+    return [
+        {
+            "level": "Info",
+            "text": "Test log entry 1",
+            "create_datetime": "2023-01-01T12:00:00.000000"
+        },
+        {
+            "level": "Debug",
+            "text": "Test log entry 2", 
+            "create_datetime": "2023-01-01T12:01:00.000000"
+        }
+    ]
 
 
 @pytest.fixture
-def test_files(temp_dir, env_data, schema_data, log_data):
-    """Create test JSON files."""
-    env_path = temp_dir / "env.json"
-    schema_path = temp_dir / "schema.json"
-    log_path = temp_dir / "log.json"
+def test_files(temp_dir, sample_env_data, sample_schema_data, sample_log_data):
+    """Создание тестовых файлов"""
+    env_path = os.path.join(temp_dir, "env.json")
+    schema_path = os.path.join(temp_dir, "schema.json")
+    log_path = os.path.join(temp_dir, "log.json")
     
+    # Создаем файлы
     with open(env_path, 'w') as f:
-        json.dump(env_data, f)
+        json.dump(sample_env_data, f)
     
     with open(schema_path, 'w') as f:
-        json.dump(schema_data, f)
+        json.dump(sample_schema_data, f)
     
     with open(log_path, 'w') as f:
-        json.dump(log_data, f)
+        json.dump(sample_log_data, f)
     
     return {
-        "env_path": str(env_path),
-        "schema_path": str(schema_path),
-        "log_path": str(log_path)
+        "env_path": env_path,
+        "schema_path": schema_path,
+        "log_path": log_path,
+        "temp_dir": temp_dir
     }
 
 
 @pytest.fixture
-def client(test_files):
-    """Create PepeunitClient instance for testing."""
-    return PepeunitClient(
-        env_path=test_files["env_path"],
-        schema_path=test_files["schema_path"],
-        log_path=test_files["log_path"]
-    )
-
-
-class MockMQTTClient:
-    """Mock MQTT client for testing."""
-    
-    def __init__(self):
-        self.published_messages = []
-        self.subscribed_topics = []
-    
-    def publish(self, topic: str, payload: str) -> None:
-        self.published_messages.append((topic, payload))
-    
-    def subscribe(self, topics: list) -> None:
-        self.subscribed_topics.extend(topics)
-
-
-class MockRESTClient:
-    """Mock REST client for testing."""
-    
-    def __init__(self):
-        self.requests = []
-    
-    def get(self, url: str, headers: dict = None) -> dict:
-        self.requests.append(("GET", url, headers))
-        return {"status": "success", "data": "test_data"}
-    
-    def post(self, url: str, data: dict = None, headers: dict = None) -> dict:
-        self.requests.append(("POST", url, data, headers))
-        return {"status": "success", "data": "test_data"}
-
-
-@pytest.fixture
 def mock_mqtt_client():
-    """Mock MQTT client for testing."""
+    """Мок MQTT клиента для тестов"""
+    class MockMQTTClient:
+        def __init__(self):
+            self.is_connected = False
+            self.subscribed_topics = []
+            self.published_messages = []
+            self.message_handler = None
+        
+        def connect(self):
+            self.is_connected = True
+        
+        def disconnect(self):
+            self.is_connected = False
+        
+        def subscribe(self, topics):
+            self.subscribed_topics.extend(topics)
+        
+        def unsubscribe(self, topics):
+            for topic in topics:
+                if topic in self.subscribed_topics:
+                    self.subscribed_topics.remove(topic)
+        
+        def publish(self, topic, message):
+            self.published_messages.append((topic, message))
+            return True
+        
+        def set_message_handler(self, handler):
+            self.message_handler = handler
+        
+        def start_loop(self):
+            pass
+        
+        def stop_loop(self):
+            pass
+    
     return MockMQTTClient()
 
 
 @pytest.fixture
 def mock_rest_client():
-    """Mock REST client for testing."""
+    """Мок REST клиента для тестов"""
+    class MockRESTClient:
+        def __init__(self):
+            self.requests = []
+        
+        def get(self, url, headers=None):
+            self.requests.append(('GET', url, None, headers))
+            return {"status": "success", "data": "test"}
+        
+        def post(self, url, data=None, headers=None):
+            self.requests.append(('POST', url, data, headers))
+            return {"status": "success", "data": "test"}
+        
+        def put(self, url, data=None, headers=None):
+            self.requests.append(('PUT', url, data, headers))
+            return {"status": "success", "data": "test"}
+        
+        def delete(self, url, headers=None):
+            self.requests.append(('DELETE', url, None, headers))
+            return {"status": "success", "data": "test"}
+        
+        def download_file(self, url, file_path, headers=None):
+            self.requests.append(('DOWNLOAD', url, file_path, headers))
+            # Создаем фиктивный файл
+            with open(file_path, 'w') as f:
+                f.write("test file content")
+    
     return MockRESTClient()
-
-
-@pytest.fixture
-def client_with_mqtt(test_files, mock_mqtt_client):
-    """Create PepeunitClient with MQTT client."""
-    return PepeunitClient(
-        env_path=test_files["env_path"],
-        schema_path=test_files["schema_path"],
-        log_path=test_files["log_path"],
-        mqtt_client=mock_mqtt_client
-    )
-
-
-@pytest.fixture
-def client_with_rest(test_files, mock_rest_client):
-    """Create PepeunitClient with REST client."""
-    return PepeunitClient(
-        env_path=test_files["env_path"],
-        schema_path=test_files["schema_path"],
-        log_path=test_files["log_path"],
-        rest_client=mock_rest_client
-    )
-
-
-@pytest.fixture
-def client_with_both(test_files, mock_mqtt_client, mock_rest_client):
-    """Create PepeunitClient with both MQTT and REST clients."""
-    return PepeunitClient(
-        env_path=test_files["env_path"],
-        schema_path=test_files["schema_path"],
-        log_path=test_files["log_path"],
-        mqtt_client=mock_mqtt_client,
-        rest_client=mock_rest_client
-    )

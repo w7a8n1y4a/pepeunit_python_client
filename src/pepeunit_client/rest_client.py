@@ -1,118 +1,150 @@
 import json
-import os
 from typing import Any, Dict, Optional
 
-import httpx
-
 from .interfaces import RESTClientInterface
-from .settings import Settings
+from .exceptions import PepeunitClientError
+
+
+try:
+    import httpx
+    REST_AVAILABLE = True
+except ImportError:
+    REST_AVAILABLE = False
 
 
 class RESTClient(RESTClientInterface):
+    """Реализация REST клиента на основе httpx"""
     
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        self._client: Optional[httpx.Client] = None
+    def __init__(self, timeout: int = 30):
+        if not REST_AVAILABLE:
+            raise PepeunitClientError("httpx is not installed. Install with: pip install 'pepeunit-client[rest]'")
+        
+        self.timeout = timeout
+        self.client = httpx.Client(timeout=timeout)
     
-    def _get_client(self) -> httpx.Client:
-        if self._client is None:
-            # Строим базовый URL из настроек
-            base_url = f"{self.settings.HTTP_TYPE}://{self.settings.PEPEUNIT_URL}{self.settings.PEPEUNIT_APP_PREFIX}{self.settings.PEPEUNIT_API_ACTUAL_PREFIX}"
-            
-            headers = {
-                'accept': 'application/json',
-                'x-auth-token': self.settings.PEPEUNIT_TOKEN
-            }
-            
-            self._client = httpx.Client(
-                base_url=base_url,
-                timeout=30.0,
-                headers=headers,
-                verify=True,
-                follow_redirects=True
-            )
-        return self._client
+    def __del__(self):
+        """Закрытие клиента при удалении объекта"""
+        if hasattr(self, 'client'):
+            self.client.close()
     
-    def _build_url(self, endpoint: str) -> str:
-        """Построение URL для API endpoint"""
-        return f"/{endpoint.lstrip('/')}"
-    
-    def download_update(self, unit_uuid: str) -> str:
-        """Скачивание архива обновления"""
+    def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """GET запрос"""
         try:
-            client = self._get_client()
-            url = self._build_url(f"units/firmware/tgz/{unit_uuid}")
-            
-            response = client.get(url)
+            response = self.client.get(url, headers=headers)
             response.raise_for_status()
             
-            # Сохраняем файл
-            archive_path = f"update_{unit_uuid}.tar.gz"
-            with open(archive_path, 'wb') as f:
-                f.write(response.content)
-            
-            return archive_path
+            # Пытаемся разобрать как JSON, если не получается - возвращаем текст
+            try:
+                return response.json()
+            except json.JSONDecodeError:
+                return {"text": response.text, "status_code": response.status_code}
+                
         except Exception as e:
-            raise Exception(f"Failed to download update: {e}")
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                raise PepeunitClientError(f"HTTP error {e.response.status_code}: {e.response.text}")
+            elif 'httpx' in str(type(e)) and 'RequestError' in str(type(e)):
+                raise PepeunitClientError(f"Request error: {e}")
+            else:
+                raise PepeunitClientError(f"Unexpected error during GET request: {e}")
     
-    def download_env(self, unit_uuid: str) -> Dict[str, Any]:
-        """Скачивание env.json"""
+    def post(self, url: str, data: Optional[Dict[str, Any]] = None, 
+             headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """POST запрос"""
         try:
-            client = self._get_client()
-            url = self._build_url(f"units/env/{unit_uuid}")
-            
-            response = client.get(url)
+            response = self.client.post(url, json=data, headers=headers)
             response.raise_for_status()
             
-            return response.json()
+            try:
+                return response.json()
+            except json.JSONDecodeError:
+                return {"text": response.text, "status_code": response.status_code}
+                
         except Exception as e:
-            raise Exception(f"Failed to download env: {e}")
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                raise PepeunitClientError(f"HTTP error {e.response.status_code}: {e.response.text}")
+            elif 'httpx' in str(type(e)) and 'RequestError' in str(type(e)):
+                raise PepeunitClientError(f"Request error: {e}")
+            else:
+                raise PepeunitClientError(f"Unexpected error during POST request: {e}")
     
-    def download_schema(self, unit_uuid: str) -> Dict[str, Any]:
-        """Скачивание schema.json"""
+    def put(self, url: str, data: Optional[Dict[str, Any]] = None,
+            headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """PUT запрос"""
         try:
-            client = self._get_client()
-            url = self._build_url(f"units/get_current_schema/{unit_uuid}")
-            
-            response = client.get(url)
+            response = self.client.put(url, json=data, headers=headers)
             response.raise_for_status()
             
-            return response.json()
+            try:
+                return response.json()
+            except json.JSONDecodeError:
+                return {"text": response.text, "status_code": response.status_code}
+                
         except Exception as e:
-            raise Exception(f"Failed to download schema: {e}")
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                raise PepeunitClientError(f"HTTP error {e.response.status_code}: {e.response.text}")
+            elif 'httpx' in str(type(e)) and 'RequestError' in str(type(e)):
+                raise PepeunitClientError(f"Request error: {e}")
+            else:
+                raise PepeunitClientError(f"Unexpected error during PUT request: {e}")
     
-    def set_state_storage(self, unit_uuid: str, state: str) -> None:
-        """Загрузка состояния в Unit Storage"""
+    def delete(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """DELETE запрос"""
         try:
-            client = self._get_client()
-            url = self._build_url(f"set_state_storage/{unit_uuid}")
-            
-            data = {"state": state}
-            response = client.post(url, json=data)
-            response.raise_for_status()
-        except Exception as e:
-            raise Exception(f"Failed to set state storage: {e}")
-    
-    def get_state_storage(self, unit_uuid: str) -> str:
-        """Получение состояния из Unit Storage"""
-        try:
-            client = self._get_client()
-            url = self._build_url(f"get_state_storage/{unit_uuid}")
-            
-            response = client.get(url)
+            response = self.client.delete(url, headers=headers)
             response.raise_for_status()
             
-            return response.text
+            try:
+                return response.json()
+            except json.JSONDecodeError:
+                return {"text": response.text, "status_code": response.status_code}
+                
         except Exception as e:
-            raise Exception(f"Failed to get state storage: {e}")
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                raise PepeunitClientError(f"HTTP error {e.response.status_code}: {e.response.text}")
+            elif 'httpx' in str(type(e)) and 'RequestError' in str(type(e)):
+                raise PepeunitClientError(f"Request error: {e}")
+            else:
+                raise PepeunitClientError(f"Unexpected error during DELETE request: {e}")
     
-    def close(self) -> None:
-        if self._client:
-            self._client.close()
-            self._client = None
+    def download_file(self, url: str, file_path: str, 
+                     headers: Optional[Dict[str, str]] = None) -> None:
+        """Скачивание файла"""
+        try:
+            with self.client.stream('GET', url, headers=headers) as response:
+                response.raise_for_status()
+                
+                with open(file_path, 'wb') as f:
+                    for chunk in response.iter_bytes():
+                        f.write(chunk)
+                        
+        except IOError as e:
+            raise PepeunitClientError(f"File writing error: {e}")
+        except Exception as e:
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                raise PepeunitClientError(f"HTTP error {e.response.status_code}: {e.response.text}")
+            elif 'httpx' in str(type(e)) and 'RequestError' in str(type(e)):
+                raise PepeunitClientError(f"Request error: {e}")
+            else:
+                raise PepeunitClientError(f"Unexpected error during file download: {e}")
+
+
+class DummyRESTClient(RESTClientInterface):
+    """Заглушка REST клиента для случаев, когда REST не используется"""
     
-    def __enter__(self):
-        return self
+    def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    def post(self, url: str, data: Optional[Dict[str, Any]] = None, 
+             headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")
+    
+    def put(self, url: str, data: Optional[Dict[str, Any]] = None,
+            headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")
+    
+    def delete(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")
+    
+    def download_file(self, url: str, file_path: str, 
+                     headers: Optional[Dict[str, str]] = None) -> None:
+        raise PepeunitClientError("REST client is not available. Install httpx to use REST functionality.")

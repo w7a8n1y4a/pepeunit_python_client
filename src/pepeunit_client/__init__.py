@@ -1,30 +1,29 @@
 """
-Pepeunit Python Client
+PepeunitClient - Мультиплатформенная библиотека для работы с Pepeunit Unit Storage
 
-A multi-platform library for working with Pepeunit Unit Storage.
-Supports MQTT and REST clients with optional dependencies.
+Основные компоненты:
+- PepeunitClient: Основной клиент для работы с Pepeunit
+- Settings: Класс для работы с настройками
+- Schema: Класс для работы с MQTT топиками
+- LogLevel: Уровни логирования
+- Исключения: PepeunitClientError
 """
 
-from .pepeunit_client import PepeunitClient, PepeunitClientError
-from .enums import LogLevel, ReservedEnvVariableName
+from .pepeunit_client import PepeunitClient
 from .settings import Settings
-from .file_manager import FileManager
-from .interfaces import MQTTClientInterface, RESTClientInterface
-from .mqtt_client import MQTTClient
-from .rest_client import RESTClient
 from .schema import Schema
+from .enums import LogLevel, ReservedEnvVariableName
+from .exceptions import PepeunitClientError
 
-__version__ = "0.10.0"
+__version__ = "0.9.0"
+__author__ = "Ivan Serebrennikov"
+__email__ = "admin@silberworks.com"
+
 __all__ = [
     "PepeunitClient",
-    "PepeunitClientError",
-    "LogLevel", 
-    "ReservedEnvVariableName",
-    "Settings",
-    "FileManager",
-    "MQTTClientInterface",
-    "RESTClientInterface",
-    "MQTTClient",
-    "RESTClient",
+    "Settings", 
     "Schema",
+    "LogLevel",
+    "ReservedEnvVariableName",
+    "PepeunitClientError"
 ]

@@ -1,280 +1,321 @@
-import json
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+"""
+Тесты MQTT клиента
+"""
 
-from pepeunit_client.mqtt_client import MQTTClient
-from pepeunit_client.interfaces import MQTTClientInterface
+import pytest
+from unittest.mock import Mock, patch
+
+from pepeunit_client.mqtt_client import MQTTClient, DummyMQTTClient
+from pepeunit_client.exceptions import PepeunitClientError
 
 
 class TestMQTTClient:
+    """Тесты реального MQTT клиента"""
     
-    def test_implements_interface(self):
-        assert issubclass(MQTTClient, MQTTClientInterface)
+    @patch('pepeunit_client.mqtt_client.MQTT_AVAILABLE', False)
+    def test_mqtt_not_available(self):
+        """Тест ошибки когда paho-mqtt не установлен"""
+        with pytest.raises(PepeunitClientError, match="paho-mqtt is not installed"):
+            MQTTClient("localhost", 1883, "user", "pass")
     
-    def test_init_with_defaults(self):
-        client = MQTTClient(host="localhost")
-        assert client.host == "localhost"
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_client_initialization(self, mock_mqtt):
+        """Тест инициализации MQTT клиента"""
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        assert client.host == "test.host"
         assert client.port == 1883
-        assert client.username is None
-        assert client.password is None
-        assert client.client_id is not None
-        assert client.keepalive == 60
-        assert not client.is_connected()
+        assert client.username == "test_user"
+        assert client.password == "test_pass"
+        assert not client.is_connected
     
-    def test_init_with_custom_params(self):
-        client = MQTTClient(
-            host="test.example.com",
-            port=8883,
-            username="user",
-            password="pass",
-            client_id="test-client",
-            keepalive=120
-        )
-        assert client.host == "test.example.com"
-        assert client.port == 8883
-        assert client.username == "user"
-        assert client.password == "pass"
-        assert client.client_id == "test-client"
-        assert client.keepalive == 120
-    
-    def test_connect_success(self):
-        client = MQTTClient(host="localhost")
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_connect(self, mock_mqtt):
+        """Тест подключения MQTT"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
         
-        with patch.object(client.client, 'connect', return_value=0) as mock_connect:
-            with patch.object(client.client, 'loop_start') as mock_loop_start:
-                result = client.connect()
-                
-                assert result is True
-                assert client.is_connected()
-                mock_connect.assert_called_once_with("localhost", 1883, 60)
-                mock_loop_start.assert_called_once()
-    
-    def test_connect_failure(self):
-        client = MQTTClient(host="localhost")
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
         
-        with patch.object(client.client, 'connect', return_value=1) as mock_connect:
-            result = client.connect()
-            
-            assert result is False
-            assert not client.is_connected()
-            assert client.get_connection_error() == "Connection failed with result 1"
+        # Проверяем вызовы
+        mock_mqtt.Client.assert_called_once()
+        mock_client_instance.username_pw_set.assert_called_with("test_user", "test_pass")
+        mock_client_instance.connect.assert_called_with("test.host", 1883)
+        assert client.is_connected
     
-    def test_connect_exception(self):
-        client = MQTTClient(host="localhost")
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_disconnect(self, mock_mqtt):
+        """Тест отключения MQTT"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
         
-        with patch.object(client.client, 'connect', side_effect=Exception("Connection error")):
-            result = client.connect()
-            
-            assert result is False
-            assert not client.is_connected()
-            assert client.get_connection_error() == "Connection error"
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        client.disconnect()
+        
+        mock_client_instance.disconnect.assert_called_once()
+        assert not client.is_connected
     
-    def test_disconnect(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_subscribe(self, mock_mqtt):
+        """Тест подписки на топики"""
+        mock_client_instance = Mock()
+        mock_client_instance.subscribe.return_value = (0, 1)  # MQTT_ERR_SUCCESS, message_id
+        mock_mqtt.Client.return_value = mock_client_instance
+        mock_mqtt.MQTT_ERR_SUCCESS = 0
         
-        with patch.object(client.client, 'loop_stop') as mock_loop_stop:
-            with patch.object(client.client, 'disconnect') as mock_disconnect:
-                client.disconnect()
-                
-                assert not client.is_connected()
-                mock_loop_stop.assert_called_once()
-                mock_disconnect.assert_called_once()
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        
+        test_topics = ["topic1", "topic2"]
+        client.subscribe(test_topics)
+        
+        # Проверяем, что подписка была сделана для каждого топика
+        assert mock_client_instance.subscribe.call_count == 2
     
-    def test_publish_success(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_publish(self, mock_mqtt):
+        """Тест публикации сообщений"""
+        mock_client_instance = Mock()
         mock_result = Mock()
-        mock_result.rc = 0
+        mock_result.rc = 0  # MQTT_ERR_SUCCESS
+        mock_client_instance.publish.return_value = mock_result
+        mock_mqtt.Client.return_value = mock_client_instance
+        mock_mqtt.MQTT_ERR_SUCCESS = 0
         
-        with patch.object(client.client, 'publish', return_value=mock_result) as mock_publish:
-            result = client.publish("test/topic", "test message")
-            
-            assert result is True
-            mock_publish.assert_called_once_with("test/topic", "test message", 0, False)
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        
+        result = client.publish("test/topic", "test message")
+        
+        mock_client_instance.publish.assert_called_with("test/topic", "test message")
+        assert result is True
     
-    def test_publish_failure(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_message_handler(self, mock_mqtt):
+        """Тест установки обработчика сообщений"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
         
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        def test_handler(client, userdata, msg):
+            pass
+        
+        client.set_message_handler(test_handler)
+        assert client.message_handler == test_handler
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_mqtt_loop_control(self, mock_mqtt):
+        """Тест управления циклом обработки сообщений"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        
+        client.start_loop()
+        mock_client_instance.loop_start.assert_called_once()
+        
+        client.stop_loop()
+        mock_client_instance.loop_stop.assert_called_once()
+    
+    def test_mqtt_not_connected_errors(self):
+        """Тест ошибок при отсутствии подключения"""
+        client = DummyMQTTClient()  # Используем dummy клиент
+        
+        with pytest.raises(PepeunitClientError):
+            client.connect()
+        
+        with pytest.raises(PepeunitClientError):
+            client.subscribe(["topic1"])
+        
+        with pytest.raises(PepeunitClientError):
+            client.publish("topic1", "message")
+
+
+class TestDummyMQTTClient:
+    """Тесты заглушки MQTT клиента"""
+    
+    def test_dummy_client_initialization(self):
+        """Тест инициализации dummy клиента"""
+        client = DummyMQTTClient()
+        
+        assert not client.is_connected
+        assert client.message_handler is None
+    
+    def test_dummy_client_methods_raise_errors(self):
+        """Тест что методы dummy клиента вызывают ошибки"""
+        client = DummyMQTTClient()
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not available"):
+            client.connect()
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not available"):
+            client.subscribe(["topic"])
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not available"):
+            client.unsubscribe(["topic"])
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not available"):
+            client.publish("topic", "message")
+    
+    def test_dummy_client_safe_methods(self):
+        """Тест безопасных методов dummy клиента"""
+        client = DummyMQTTClient()
+        
+        # Эти методы не должны вызывать ошибки
+        client.disconnect()
+        client.start_loop()
+        client.stop_loop()
+        
+        def test_handler(client, userdata, msg):
+            pass
+        
+        client.set_message_handler(test_handler)
+        assert client.message_handler == test_handler
+
+
+class TestMQTTCallbacks:
+    """Тесты callback функций MQTT"""
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_on_connect_callback(self, mock_mqtt):
+        """Тест callback при подключении"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        
+        # Симулируем успешное подключение
+        client._on_connect(None, None, None, 0)
+        assert client.is_connected
+        
+        # Симулируем неуспешное подключение
+        with pytest.raises(PepeunitClientError):
+            client._on_connect(None, None, None, 1)
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_on_disconnect_callback(self, mock_mqtt):
+        """Тест callback при отключении"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        client.is_connected = True
+        
+        # Симулируем отключение
+        client._on_disconnect(None, None, 0)
+        assert not client.is_connected
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_on_message_callback(self, mock_mqtt):
+        """Тест callback при получении сообщения"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        # Устанавливаем обработчик сообщений
+        handler_called = False
+        
+        def test_handler(client, userdata, msg):
+            nonlocal handler_called
+            handler_called = True
+        
+        client.set_message_handler(test_handler)
+        
+        # Симулируем получение сообщения
+        mock_msg = Mock()
+        client._on_message(None, None, mock_msg)
+        
+        assert handler_called
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_on_message_callback_error_handling(self, mock_mqtt):
+        """Тест обработки ошибок в callback сообщений"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        # Устанавливаем обработчик который вызывает ошибку
+        def error_handler(client, userdata, msg):
+            raise Exception("Test error")
+        
+        client.set_message_handler(error_handler)
+        
+        # Симулируем получение сообщения - не должно вызывать исключение
+        mock_msg = Mock()
+        client._on_message(None, None, mock_msg)
+        # Тест проходит если исключение не было вызвано
+
+
+class TestMQTTClientEdgeCases:
+    """Тесты граничных случаев MQTT клиента"""
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_subscribe_without_connection(self, mock_mqtt):
+        """Тест подписки без подключения"""
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not connected"):
+            client.subscribe(["topic1"])
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_publish_without_connection(self, mock_mqtt):
+        """Тест публикации без подключения"""
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        
+        with pytest.raises(PepeunitClientError, match="MQTT client is not connected"):
+            client.publish("topic1", "message")
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_subscribe_failure(self, mock_mqtt):
+        """Тест неуспешной подписки"""
+        mock_client_instance = Mock()
+        mock_client_instance.subscribe.return_value = (1, 1)  # Ошибка подписки
+        mock_mqtt.Client.return_value = mock_client_instance
+        mock_mqtt.MQTT_ERR_SUCCESS = 0
+        
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
+        
+        with pytest.raises(PepeunitClientError, match="Failed to subscribe"):
+            client.subscribe(["topic1"])
+    
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_publish_failure(self, mock_mqtt):
+        """Тест неуспешной публикации"""
+        mock_client_instance = Mock()
         mock_result = Mock()
-        mock_result.rc = 1
+        mock_result.rc = 1  # Ошибка публикации
+        mock_client_instance.publish.return_value = mock_result
+        mock_mqtt.Client.return_value = mock_client_instance
+        mock_mqtt.MQTT_ERR_SUCCESS = 0
         
-        with patch.object(client.client, 'publish', return_value=mock_result) as mock_publish:
-            result = client.publish("test/topic", "test message")
-            
-            assert result is False
-    
-    def test_publish_not_connected(self):
-        client = MQTTClient(host="localhost")
-        client._connected = False
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
         
         result = client.publish("test/topic", "test message")
         assert result is False
     
-    def test_publish_exception(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
+    @patch('pepeunit_client.mqtt_client.mqtt')
+    def test_empty_topic_list(self, mock_mqtt):
+        """Тест пустого списка топиков"""
+        mock_client_instance = Mock()
+        mock_mqtt.Client.return_value = mock_client_instance
         
-        with patch.object(client.client, 'publish', side_effect=Exception("Publish error")):
-            result = client.publish("test/topic", "test message")
-            assert result is False
-    
-    def test_publish_json_success(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
+        client = MQTTClient("test.host", 1883, "test_user", "test_pass")
+        client.connect()
         
-        mock_result = Mock()
-        mock_result.rc = 0
+        # Подписка на пустой список не должна вызывать ошибок
+        client.subscribe([])
+        client.unsubscribe([])
         
-        with patch.object(client, 'publish', return_value=True) as mock_publish:
-            data = {"key": "value", "number": 123}
-            result = client.publish_json("test/topic", data)
-            
-            assert result is True
-            mock_publish.assert_called_once_with("test/topic", json.dumps(data), 0, False)
-    
-    def test_publish_json_invalid_data(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        # Test with non-serializable data
-        class NonSerializable:
-            pass
-        
-        result = client.publish_json("test/topic", {"obj": NonSerializable()})
-        assert result is False
-    
-    def test_subscribe_success(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'subscribe', return_value=(0, 1)) as mock_subscribe:
-            result = client.subscribe(["topic1", "topic2"])
-            
-            assert result is True
-            mock_subscribe.assert_called_once_with([("topic1", 0), ("topic2", 0)])
-    
-    def test_subscribe_single_topic(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'subscribe', return_value=(0, 1)) as mock_subscribe:
-            result = client.subscribe("single_topic")
-            
-            assert result is True
-            mock_subscribe.assert_called_once_with([("single_topic", 0)])
-    
-    def test_subscribe_failure(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'subscribe', return_value=(1, 1)) as mock_subscribe:
-            result = client.subscribe(["topic1"])
-            assert result is False
-    
-    def test_subscribe_not_connected(self):
-        client = MQTTClient(host="localhost")
-        client._connected = False
-        
-        result = client.subscribe(["topic1"])
-        assert result is False
-    
-    def test_subscribe_exception(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'subscribe', side_effect=Exception("Subscribe error")):
-            result = client.subscribe(["topic1"])
-            assert result is False
-    
-    def test_unsubscribe_success(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'unsubscribe', return_value=(0, 1)) as mock_unsubscribe:
-            result = client.unsubscribe(["topic1", "topic2"])
-            
-            assert result is True
-            mock_unsubscribe.assert_called_once_with(["topic1", "topic2"])
-    
-    def test_unsubscribe_single_topic(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'unsubscribe', return_value=(0, 1)) as mock_unsubscribe:
-            result = client.unsubscribe("single_topic")
-            
-            assert result is True
-            mock_unsubscribe.assert_called_once_with(["single_topic"])
-    
-    def test_unsubscribe_failure(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'unsubscribe', return_value=(1, 1)) as mock_unsubscribe:
-            result = client.unsubscribe(["topic1"])
-            assert result is False
-    
-    def test_unsubscribe_not_connected(self):
-        client = MQTTClient(host="localhost")
-        client._connected = False
-        
-        result = client.unsubscribe(["topic1"])
-        assert result is False
-    
-    def test_unsubscribe_exception(self):
-        client = MQTTClient(host="localhost")
-        client._connected = True
-        
-        with patch.object(client.client, 'unsubscribe', side_effect=Exception("Unsubscribe error")):
-            result = client.unsubscribe(["topic1"])
-            assert result is False
-    
-    def test_get_client_info(self):
-        client = MQTTClient(
-            host="test.example.com",
-            port=8883,
-            username="user",
-            password="pass",
-            client_id="test-client"
-        )
-        
-        info = client.get_client_info()
-        
-        assert info["client_id"] == "test-client"
-        assert info["host"] == "test.example.com"
-        assert info["port"] == 8883
-        assert info["username"] == "user"
-        assert info["connected"] is False
-        assert info["connection_error"] is None
-    
-    def test_callback_wrappers(self):
-        client = MQTTClient(host="localhost")
-        
-        # Test that callbacks are properly wrapped
-        assert callable(client.client.on_connect)
-        assert callable(client.client.on_disconnect)
-        assert callable(client.client.on_message)
-        assert callable(client.client.on_publish)
-        assert callable(client.client.on_subscribe)
-        assert callable(client.client.on_unsubscribe)
-        assert callable(client.client.on_log)
-    
-    def test_custom_callbacks(self):
-        on_connect_callback = Mock()
-        on_message_callback = Mock()
-        
-        client = MQTTClient(
-            host="localhost",
-            on_connect=on_connect_callback,
-            on_message=on_message_callback
-        )
-        
-        # Simulate callbacks being called
-        client.client.on_connect(None, None, None, 0)
-        client.client.on_message(None, None, None)
-        
-        on_connect_callback.assert_called_once()
-        on_message_callback.assert_called_once()
+        # Методы не должны были вызываться
+        mock_client_instance.subscribe.assert_not_called()
+        mock_client_instance.unsubscribe.assert_not_called()

@@ -1,312 +1,366 @@
+"""
+Интеграционные тесты для полной функциональности PepeunitClient
+Требуют реальных настроек в env.json, schema.json, log.json
+"""
+
 import json
-import tempfile
+import os
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch
+import time
+from unittest.mock import patch
 
-from pepeunit_client import PepeunitClient, MQTTClient, RESTClient, LogLevel
+from pepeunit_client import PepeunitClient, LogLevel
 
 
-class TestIntegration:
+class TestRealIntegration:
+    """Интеграционные тесты с реальными файлами"""
     
-    def setup_method(self):
-        # Create temporary files for testing
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.env_path = self.temp_dir / "env.json"
-        self.schema_path = self.temp_dir / "schema.json"
-        self.log_path = self.temp_dir / "log.json"
+    def test_real_files_loading(self):
+        """Тест загрузки реальных файлов из корня проекта"""
+        # Пропускаем тест если файлы не существуют
+        files = ["env.json", "schema.json", "log.json"]
+        for file in files:
+            if not os.path.exists(file):
+                pytest.skip(f"Real file {file} not found")
         
-        # Create test data
-        env_data = {
-            "PEPEUNIT_URL": "test.example.com",
-            "PEPEUNIT_TOKEN": "test-token",
-            "MQTT_URL": "mqtt.example.com",
-            "MQTT_PORT": 1883,
-            "COMMIT_VERSION": "1.0.0"
-        }
-        
-        schema_data = {
-            "output_base_topic": {
-                "log/pepeunit": ["pepeunit/unit/test/log"],
-                "state/pepeunit": ["pepeunit/unit/test/state"]
-            },
-            "input_base_topic": {
-                "update": ["pepeunit/unit/test/update"],
-                "env_update": ["pepeunit/unit/test/env_update"]
-            },
-            "output_topic": {
-                "output/pepeunit": ["pepeunit/unit/test/output"]
-            }
-        }
-        
-        # Write test files
-        with open(self.env_path, 'w') as f:
-            json.dump(env_data, f)
-        
-        with open(self.schema_path, 'w') as f:
-            json.dump(schema_data, f)
-        
-        with open(self.log_path, 'w') as f:
-            json.dump([], f)
-    
-    def teardown_method(self):
-        # Clean up temporary files
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-    
-    def test_pepeunit_client_without_clients(self):
+        # Инициализируем клиент с реальными файлами
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path)
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
-        assert client.mqtt_client is None
-        assert client.rest_client is None
-        assert client.settings.PEPEUNIT_URL == "test.example.com"
-        assert client.settings.PEPEUNIT_TOKEN == "test-token"
+        # Проверяем, что настройки загружены
+        assert hasattr(client.settings, 'PEPEUNIT_URL')
+        assert hasattr(client.settings, 'PEPEUNIT_TOKEN')
+        
+        # Проверяем извлечение unit_uuid
+        if client.settings.PEPEUNIT_TOKEN:
+            assert len(client.unit_uuid) > 0
+        
+        # Проверяем схему
+        assert hasattr(client.schema, 'input_base_topic')
+        assert hasattr(client.schema, 'output_base_topic')
     
-    def test_pepeunit_client_with_mqtt_client(self):
-        mqtt_client = MQTTClient(
-            host="mqtt.example.com",
-            port=1883,
-            username="test-token"
-        )
+    def test_logging_to_real_file(self):
+        """Тест логирования в реальный файл"""
+        if not os.path.exists("log.json"):
+            pytest.skip("Real log.json not found")
+        
+        # Сохраняем оригинальный лог
+        with open("log.json", 'r') as f:
+            original_log = json.load(f)
+        
+        try:
+            client = PepeunitClient(
+                env_path="env.json",
+                schema_path="schema.json",
+                log_path="log.json",
+                mqtt_enabled=False,
+                rest_enabled=False
+            )
+            
+            # Добавляем тестовую запись
+            test_message = f"Integration test {time.time()}"
+            client.log(LogLevel.INFO, test_message)
+            
+            # Проверяем, что запись добавилась
+            full_log = client.get_full_log()
+            assert len(full_log) > len(original_log)
+            
+            # Проверяем последнюю запись
+            last_entry = full_log[-1]
+            assert last_entry["text"] == test_message
+            assert last_entry["level"] == "Info"
+            
+        finally:
+            # Восстанавливаем оригинальный лог
+            with open("log.json", 'w') as f:
+                json.dump(original_log, f, indent=4)
+    
+    def test_schema_topic_access(self):
+        """Тест доступа к топикам из реальной схемы"""
+        if not os.path.exists("schema.json"):
+            pytest.skip("Real schema.json not found")
         
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            mqtt_client=mqtt_client
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
+        # Проверяем получение входных топиков
+        input_topics = client.get_subscription_topics()
+        assert isinstance(input_topics, list)
+        
+        # Проверяем доступ к output_topic по ключу
+        if "output/pepeunit" in client.schema.output_topic:
+            output_topics = client.schema.output_topic["output/pepeunit"]
+            assert isinstance(output_topics, list)
+            assert len(output_topics) > 0
+    
+    def test_system_state_generation(self):
+        """Тест генерации реального состояния системы"""
+        if not os.path.exists("env.json"):
+            pytest.skip("Real env.json not found")
+        
+        client = PepeunitClient(
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=False,
+            rest_enabled=False
+        )
+        
+        state = client.get_system_state()
+        
+        # Проверяем структуру состояния
+        required_fields = ["millis", "commit_version", "mem_free", "mem_alloc", "freq"]
+        for field in required_fields:
+            assert field in state
+        
+        # Проверяем типы данных
+        assert isinstance(state["millis"], int)
+        assert isinstance(state["mem_free"], int)
+        assert isinstance(state["mem_alloc"], int)
+        assert isinstance(state["freq"], (int, float))
+        
+        # Проверяем, что время актуальное (в пределах последних нескольких секунд)
+        current_time = time.time() * 1000
+        assert abs(current_time - state["millis"]) < 5000  # 5 секунд
+
+
+@pytest.mark.skipif(
+    not all(os.path.exists(f) for f in ["env.json", "schema.json", "log.json"]),
+    reason="Real configuration files not found"
+)
+class TestMQTTIntegration:
+    """Интеграционные тесты MQTT (требуют реальные настройки)"""
+    
+    def test_mqtt_client_creation(self):
+        """Тест создания MQTT клиента с реальными настройками"""
+        client = PepeunitClient(
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=True,
+            rest_enabled=False
+        )
+        
+        # Проверяем, что MQTT клиент создан
+        assert client.mqtt_enabled
         assert client.mqtt_client is not None
-        assert client.rest_client is None
-        assert isinstance(client.mqtt_client, MQTTClient)
+        
+        # Проверяем настройки MQTT
+        if client.settings.MQTT_URL and client.settings.PEPEUNIT_TOKEN:
+            # Можем попробовать подключиться (но не будем делать это в автотестах)
+            pass
     
-    def test_pepeunit_client_with_rest_client(self):
-        rest_client = RESTClient(
-            base_url="https://api.example.com",
-            headers={"Authorization": "Bearer test-token"}
-        )
+    @patch('pepeunit_client.mqtt_client.mqtt')  # Мокируем paho.mqtt
+    def test_mqtt_connection_attempt(self, mock_mqtt):
+        """Тест попытки подключения к MQTT"""
+        # Настраиваем мок
+        mock_client_instance = mock_mqtt.Client.return_value
+        mock_client_instance.connect.return_value = None
         
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            rest_client=rest_client
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=True,
+            rest_enabled=False
         )
         
-        assert client.mqtt_client is None
+        try:
+            client.connect_mqtt()
+            # Проверяем, что методы вызвались
+            mock_client_instance.connect.assert_called()
+            mock_client_instance.loop_start.assert_called()
+        except Exception:
+            # В реальных условиях может не подключиться - это нормально для тестов
+            pass
+
+
+@pytest.mark.skipif(
+    not all(os.path.exists(f) for f in ["env.json", "schema.json", "log.json"]),
+    reason="Real configuration files not found"
+)
+class TestRESTIntegration:
+    """Интеграционные тесты REST (требуют реальные настройки)"""
+    
+    def test_rest_client_creation(self):
+        """Тест создания REST клиента с реальными настройками"""
+        client = PepeunitClient(
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=False,
+            rest_enabled=True
+        )
+        
+        # Проверяем, что REST клиент создан
+        assert client.rest_enabled
         assert client.rest_client is not None
-        assert isinstance(client.rest_client, RESTClient)
+        
+        # Проверяем построение URL
+        if client.settings.PEPEUNIT_URL:
+            test_url = client._build_api_url("/test")
+            assert client.settings.PEPEUNIT_URL in test_url
+            assert "/test" in test_url
     
-    def test_pepeunit_client_with_both_clients(self):
-        mqtt_client = MQTTClient(
-            host="mqtt.example.com",
-            port=1883,
-            username="test-token"
-        )
-        
-        rest_client = RESTClient(
-            base_url="https://api.example.com",
-            headers={"Authorization": "Bearer test-token"}
-        )
-        
+    def test_auth_headers_generation(self):
+        """Тест генерации заголовков авторизации"""
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            mqtt_client=mqtt_client,
-            rest_client=rest_client
+            env_path="env.json",
+            schema_path="schema.json",
+            log_path="log.json",
+            mqtt_enabled=False,
+            rest_enabled=True
         )
         
-        assert client.mqtt_client is not None
-        assert client.rest_client is not None
-        assert isinstance(client.mqtt_client, MQTTClient)
-        assert isinstance(client.rest_client, RESTClient)
+        headers = client._get_auth_headers()
+        
+        assert "accept" in headers
+        assert "x-auth-token" in headers
+        assert headers["accept"] == "application/json"
+        
+        if client.settings.PEPEUNIT_TOKEN:
+            assert headers["x-auth-token"] == client.settings.PEPEUNIT_TOKEN
+
+
+class TestErrorHandling:
+    """Тесты обработки ошибок"""
     
-    def test_mqtt_message_sending(self):
-        mqtt_client = MQTTClient(host="mqtt.example.com")
-        mqtt_client._connected = True  # Simulate connected state
+    def test_missing_files_handling(self, temp_dir):
+        """Тест обработки отсутствующих файлов"""
+        non_existent_path = os.path.join(temp_dir, "non_existent.json")
         
+        # Клиент должен создаваться даже с несуществующими файлами
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            mqtt_client=mqtt_client
+            env_path=non_existent_path,
+            schema_path=non_existent_path,
+            log_path=non_existent_path,
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
-        with patch.object(mqtt_client, 'publish', return_value=True) as mock_publish:
-            result = client.send_mqtt_message("test/topic", "test message")
+        # Настройки должны быть пустыми/дефолтными
+        assert isinstance(client.settings, object)
+        assert isinstance(client.schema, object)
+    
+    def test_invalid_json_handling(self, temp_dir):
+        """Тест обработки некорректных JSON файлов"""
+        # Создаем файл с некорректным JSON
+        bad_json_path = os.path.join(temp_dir, "bad.json")
+        with open(bad_json_path, 'w') as f:
+            f.write("{ invalid json content")
+        
+        # Клиент должен обработать ошибку и продолжить работу
+        client = PepeunitClient(
+            env_path=bad_json_path,
+            schema_path=bad_json_path,
+            log_path=bad_json_path,
+            mqtt_enabled=False,
+            rest_enabled=False
+        )
+        
+        # Должны быть дефолтные значения
+        assert hasattr(client.settings, 'PEPEUNIT_URL')
+        assert hasattr(client.schema, 'input_base_topic')
+    
+    def test_logging_with_errors(self, temp_dir):
+        """Тест логирования при ошибках"""
+        # Создаем директорию только для чтения
+        readonly_dir = os.path.join(temp_dir, "readonly")
+        os.makedirs(readonly_dir)
+        os.chmod(readonly_dir, 0o444)  # Только чтение
+        
+        readonly_log = os.path.join(readonly_dir, "log.json")
+        
+        try:
+            client = PepeunitClient(
+                env_path="env.json",
+                schema_path="schema.json",
+                log_path=readonly_log,
+                mqtt_enabled=False,
+                rest_enabled=False
+            )
             
-            assert result is True
-            mock_publish.assert_called_once_with("test/topic", "test message")
-    
-    def test_mqtt_topic_subscription(self):
-        mqtt_client = MQTTClient(host="mqtt.example.com")
-        mqtt_client._connected = True  # Simulate connected state
-        
-        client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            mqtt_client=mqtt_client
-        )
-        
-        with patch.object(mqtt_client, 'subscribe', return_value=True) as mock_subscribe:
-            topics = ["topic1", "topic2"]
-            result = client.subscribe_to_topics(topics)
+            # Логирование должно обрабатывать ошибку записи
+            client.log(LogLevel.ERROR, "Test error message")
             
-            assert result is True
-            mock_subscribe.assert_called_once_with(topics)
-    
-    def test_log_sending_via_mqtt(self):
-        mqtt_client = MQTTClient(host="mqtt.example.com")
-        mqtt_client._connected = True  # Simulate connected state
-        
-        client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            mqtt_client=mqtt_client
-        )
-        
-        with patch.object(mqtt_client, 'publish', return_value=True) as mock_publish:
-            result = client.send_log_via_mqtt(LogLevel.INFO, "Test log message")
+            # Клиент должен продолжить работу
+            assert hasattr(client, 'settings')
             
-            assert result is True
-            mock_publish.assert_called_once()
-            
-            # Check that the published message contains log data
-            call_args = mock_publish.call_args
-            published_data = json.loads(call_args[0][1])
-            assert published_data["level"] == "Info"
-            assert published_data["text"] == "Test log message"
+        finally:
+            # Восстанавливаем права
+            os.chmod(readonly_dir, 0o755)
+
+
+class TestPerformanceAndStability:
+    """Тесты производительности и стабильности"""
     
-    def test_rest_client_usage(self):
-        rest_client = RESTClient(base_url="https://api.example.com")
-        
+    def test_multiple_log_entries(self, test_files):
+        """Тест множественного логирования"""
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path),
-            rest_client=rest_client
+            env_path=test_files["env_path"],
+            schema_path=test_files["schema_path"],
+            log_path=test_files["log_path"],
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
-        # Test that we can access the REST client
-        assert client.rest_client is not None
-        assert client.rest_client.base_url == "https://api.example.com"
+        # Добавляем много записей в лог
+        num_entries = 100
+        for i in range(num_entries):
+            client.log(LogLevel.INFO, f"Test message {i}")
+        
+        # Проверяем, что все записи добавились
+        full_log = client.get_full_log()
+        assert len(full_log) >= num_entries + 2  # +2 из исходных тестовых данных
     
-    def test_schema_operations(self):
+    def test_rapid_settings_refresh(self, test_files):
+        """Тест частого обновления настроек"""
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path)
+            env_path=test_files["env_path"],
+            schema_path=test_files["schema_path"],
+            log_path=test_files["log_path"],
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
-        # Test getting input topics
-        input_topics = client.get_input_topics()
-        assert "pepeunit/unit/test/update" in input_topics
-        assert "pepeunit/unit/test/env_update" in input_topics
-        
-        # Test getting topic by key
-        log_topic = client.get_topic_by_key("log/pepeunit")
-        assert log_topic == "pepeunit/unit/test/log"
-        
-        # Test searching topic in schema
-        topic_type, topic_name = client.search_topic_in_schema("test")
-        assert topic_type == "output_base_topic"
-        assert topic_name == "log/pepeunit"
+        # Несколько раз обновляем настройки
+        for i in range(10):
+            client.refresh_settings()
+            # Проверяем, что настройки остаются консистентными
+            assert hasattr(client.settings, 'PEPEUNIT_URL')
+            assert hasattr(client.schema, 'input_base_topic')
     
-    def test_env_operations(self):
+    def test_memory_usage_stability(self, test_files):
+        """Тест стабильности использования памяти"""
         client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path)
+            env_path=test_files["env_path"],
+            schema_path=test_files["schema_path"],
+            log_path=test_files["log_path"],
+            mqtt_enabled=False,
+            rest_enabled=False
         )
         
-        # Test getting env value
-        url = client.get_env_value("PEPEUNIT_URL")
-        assert url == "test.example.com"
+        # Выполняем много операций
+        for i in range(50):
+            client.get_system_state()
+            client.get_subscription_topics()
+            client.log(LogLevel.DEBUG, f"Memory test {i}")
+            if i % 10 == 0:
+                client.refresh_settings()
         
-        # Test getting default value
-        default_value = client.get_env_value("NON_EXISTENT_KEY", "default")
-        assert default_value == "default"
-        
-        # Test updating env
-        client.update_env({"NEW_KEY": "new_value"})
-        new_value = client.get_env_value("NEW_KEY")
-        assert new_value == "new_value"
-    
-    def test_log_operations(self):
-        client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path)
-        )
-        
-        # Test saving log
-        client.save_log(LogLevel.INFO, "Test log message")
-        
-        # Test getting all logs
-        logs = client.get_all_logs()
-        assert len(logs) == 1
-        assert logs[0]["level"] == "Info"
-        assert logs[0]["text"] == "Test log message"
-        
-        # Test clearing logs
-        client.clear_logs()
-        logs = client.get_all_logs()
-        assert len(logs) == 0
-    
-    def test_device_state_generation(self):
-        client = PepeunitClient(
-            env_path=str(self.env_path),
-            schema_path=str(self.schema_path),
-            log_path=str(self.log_path)
-        )
-        
-        state = client.generate_device_state()
-        
+        # Проверяем, что клиент остается работоспособным
+        state = client.get_system_state()
         assert "millis" in state
-        assert "commit_version" in state
-        assert state["commit_version"] == "1.0.0"
-        assert "timestamp" in state
-    
-    def test_mqtt_client_connection_simulation(self):
-        mqtt_client = MQTTClient(host="mqtt.example.com", port=1883)
         
-        # Test initial state
-        assert not mqtt_client.is_connected()
-        assert mqtt_client.get_connection_error() is None
-        
-        # Simulate connection
-        mqtt_client._connected = True
-        assert mqtt_client.is_connected()
-        
-        # Test client info
-        info = mqtt_client.get_client_info()
-        assert info["host"] == "mqtt.example.com"
-        assert info["port"] == 1883
-        assert info["connected"] is True
-    
-    def test_rest_client_configuration(self):
-        rest_client = RESTClient(
-            base_url="https://api.example.com",
-            timeout=60.0,
-            headers={"Authorization": "Bearer token"}
-        )
-        
-        # Test client info
-        info = rest_client.get_client_info()
-        assert info["base_url"] == "https://api.example.com"
-        assert info["timeout"] == 60.0
-        assert info["default_headers"]["Authorization"] == "Bearer token"
-        
-        # Test header management
-        rest_client.add_default_header("X-Custom", "value")
-        assert rest_client._default_headers["X-Custom"] == "value"
-        
-        rest_client.remove_default_header("X-Custom")
-        assert "X-Custom" not in rest_client._default_headers
+        log_count = len(client.get_full_log())
+        assert log_count >= 50

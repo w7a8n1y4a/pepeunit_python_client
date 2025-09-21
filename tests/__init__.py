@@ -1,1 +1,1 @@
-# Tests package
+# Тесты для PepeunitClient
