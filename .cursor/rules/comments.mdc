@@ -1,9 +1,0 @@
----
-description:
-globs:
-alwaysApply: true
----
-
-- comments in English only
-- Do not create comments for function and class interfaces.
-- Create comments as rarely as possible, only when they are absolutely necessary. Imagine that a middle-level developer is reading the code and that they understand what typing is.
