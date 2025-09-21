@@ -39,31 +39,32 @@ state = client.generate_device_state()
 Добавляет возможность отправки сообщений и подписки на топики:
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel, MQTTClient
+from pepeunit_client import PepeunitClient, LogLevel
 
-mqtt_client = MQTTClient(
-    host="mqtt.example.com",
-    port=1883,
-    username="your-token"
-)
-
+# Создание клиента с MQTT (автоматически использует настройки из env.json)
 client = PepeunitClient(
     env_path="env.json",
-    schema_path="schema.json",
+    schema_path="schema.json", 
     log_path="log.json",
-    mqtt_client=mqtt_client
+    use_mqtt=True
 )
 
 # Подключение к MQTT брокеру
-mqtt_client.connect()
+client.connect_mqtt()
 
-# Отправка через MQTT
-client.send_mqtt_message("test/topic", "Hello!")
+# Отправка через MQTT (на все топики из схемы)
+client.send_mqtt_message("output/pepeunit", "Hello World!")
 client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
 
-# Подписка на топики
-topics = client.get_input_topics()
-client.subscribe_to_topics(topics)
+# Подписка на топики (на все топики из схемы)
+client.subscribe_to_topics("input/pepeunit")
+
+# Пользовательский обработчик сообщений
+def my_message_handler(topic: str, payload: str):
+    print(f"Received: {topic} -> {payload}")
+
+# Установка пользовательского обработчика
+client.set_message_handler(my_message_handler)
 ```
 
 ### 3. С REST клиентом
@@ -71,26 +72,27 @@ client.subscribe_to_topics(topics)
 Добавляет возможность работы с REST API:
 
 ```python
-from pepeunit_client import PepeunitClient, RESTClient
+from pepeunit_client import PepeunitClient
 
-rest_client = RESTClient(
-    base_url="https://api.example.com",
-    headers={"Authorization": "Bearer your-token"},
-    timeout=30.0
-)
-
+# Создание клиента с REST (автоматически использует настройки из env.json)
 client = PepeunitClient(
     env_path="env.json",
     schema_path="schema.json",
     log_path="log.json",
-    rest_client=rest_client
+    use_rest=True
 )
 
-# Выполнение HTTP запросов
-response = rest_client.get("/api/data")
-response = rest_client.post("/api/data", json_data={"key": "value"})
-response = rest_client.put("/api/data/1", json_data={"key": "updated"})
-response = rest_client.delete("/api/data/1")
+# Скачивание файлов
+archive_path = client.download_update()
+env_data = client.download_env()
+schema_data = client.download_schema()
+
+# Работа с Unit Storage
+client.set_state_storage('{"status": "active"}')
+state = client.get_state_storage()
+
+# Обновление программы
+client.update_device_program(archive_path)
 ```
 
 ### 4. Полный сценарий (MQTT + REST)
@@ -98,34 +100,34 @@ response = rest_client.delete("/api/data/1")
 Объединяет все возможности:
 
 ```python
-from pepeunit_client import PepeunitClient, LogLevel, MQTTClient, RESTClient
+from pepeunit_client import PepeunitClient, LogLevel
 
-mqtt_client = MQTTClient(
-    host="mqtt.example.com",
-    port=1883,
-    username="your-token"
-)
-
-rest_client = RESTClient(
-    base_url="https://api.example.com",
-    headers={"Authorization": "Bearer your-token"}
-)
-
+# Создание клиента с обоими клиентами
 client = PepeunitClient(
     env_path="env.json",
     schema_path="schema.json",
     log_path="log.json",
-    mqtt_client=mqtt_client,
-    rest_client=rest_client
+    use_mqtt=True,
+    use_rest=True
 )
 
 # Подключение к MQTT
-mqtt_client.connect()
+client.connect_mqtt()
 
-# Полный функционал доступен
-client.send_mqtt_message("test/topic", "Hello!")
-client.send_log_via_mqtt(LogLevel.INFO, "Лог через MQTT")
-response = rest_client.get("/api/status")
+# Пользовательский обработчик сообщений
+def my_message_handler(topic: str, payload: str):
+    print(f"Received: {topic} -> {payload}")
+
+client.set_message_handler(my_message_handler)
+
+# Полный цикл обновления (MQTT получает команду → REST скачивает → обновляется)
+client.perform_update()
+
+# Отправка сообщений
+client.send_mqtt_message("output/pepeunit", "Hello World!")
+
+# Работа с Unit Storage
+client.set_state_storage('{"status": "active"}')
 ```
 
 ## Тестирование

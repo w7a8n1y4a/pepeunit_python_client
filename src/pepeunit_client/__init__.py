@@ -12,8 +12,9 @@ from .file_manager import FileManager
 from .interfaces import MQTTClientInterface, RESTClientInterface
 from .mqtt_client import MQTTClient
 from .rest_client import RESTClient
+from .schema import Schema
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = [
     "PepeunitClient",
     "LogLevel", 
@@ -24,4 +25,5 @@ __all__ = [
     "RESTClientInterface",
     "MQTTClient",
     "RESTClient",
+    "Schema",
 ]

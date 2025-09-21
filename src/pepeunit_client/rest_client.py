@@ -1,338 +1,110 @@
 import json
-from typing import Any, Dict, List, Optional, Union
+import os
+from typing import Any, Dict, Optional
 
 import httpx
 
 from .interfaces import RESTClientInterface
+from .settings import Settings
 
 
 class RESTClient(RESTClientInterface):
     
-    def __init__(
-        self,
-        base_url: Optional[str] = None,
-        timeout: float = 30.0,
-        headers: Optional[Dict[str, str]] = None,
-        verify_ssl: bool = True,
-        follow_redirects: bool = True,
-        limits: Optional[httpx.Limits] = None
-    ) -> None:
-        self.base_url = base_url.rstrip('/') if base_url else None
-        self.timeout = timeout
-        self.verify_ssl = verify_ssl
-        self.follow_redirects = follow_redirects
-        
-        self._default_headers = headers or {}
-        self._limits = limits or httpx.Limits(max_keepalive_connections=20, max_connections=100)
-        
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
         self._client: Optional[httpx.Client] = None
     
     def _get_client(self) -> httpx.Client:
         if self._client is None:
+            # Строим базовый URL из настроек
+            base_url = f"{self.settings.HTTP_TYPE}://{self.settings.PEPEUNIT_URL}{self.settings.PEPEUNIT_APP_PREFIX}{self.settings.PEPEUNIT_API_ACTUAL_PREFIX}"
+            
+            headers = {
+                'accept': 'application/json',
+                'x-auth-token': self.settings.PEPEUNIT_TOKEN
+            }
+            
             self._client = httpx.Client(
-                base_url=self.base_url,
-                timeout=self.timeout,
-                headers=self._default_headers,
-                verify=self.verify_ssl,
-                follow_redirects=self.follow_redirects,
-                limits=self._limits
+                base_url=base_url,
+                timeout=30.0,
+                headers=headers,
+                verify=True,
+                follow_redirects=True
             )
         return self._client
     
-    def _build_url(self, url: str) -> str:
-        if self.base_url and not url.startswith(('http://', 'https://')):
-            return f"{self.base_url}/{url.lstrip('/')}"
-        return url
+    def _build_url(self, endpoint: str) -> str:
+        """Построение URL для API endpoint"""
+        return f"/{endpoint.lstrip('/')}"
     
-    def _prepare_headers(self, headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        if headers is None:
-            return self._default_headers.copy()
-        
-        merged_headers = self._default_headers.copy()
-        merged_headers.update(headers)
-        return merged_headers
-    
-    def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
-        try:
-            if response.headers.get('content-type', '').startswith('application/json'):
-                return response.json()
-            else:
-                return {
-                    'status_code': response.status_code,
-                    'text': response.text,
-                    'headers': dict(response.headers)
-                }
-        except (json.JSONDecodeError, ValueError):
-            return {
-                'status_code': response.status_code,
-                'text': response.text,
-                'headers': dict(response.headers),
-                'error': 'Invalid JSON response'
-            }
-    
-    def get(
-        self,
-        url: str,
-        headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def download_update(self, unit_uuid: str) -> str:
+        """Скачивание архива обновления"""
         try:
             client = self._get_client()
-            full_url = self._build_url(url)
-            prepared_headers = self._prepare_headers(headers)
+            url = self._build_url(f"units/firmware/tgz/{unit_uuid}")
             
-            response = client.get(
-                full_url,
-                headers=prepared_headers,
-                params=params
-            )
+            response = client.get(url)
+            response.raise_for_status()
             
-            result = self._handle_response(response)
-            result['success'] = response.is_success
-            return result
+            # Сохраняем файл
+            archive_path = f"update_{unit_uuid}.tar.gz"
+            with open(archive_path, 'wb') as f:
+                f.write(response.content)
             
-        except httpx.TimeoutException:
-            return {
-                'success': False,
-                'error': 'Request timeout',
-                'status_code': 408
-            }
-        except httpx.ConnectError:
-            return {
-                'success': False,
-                'error': 'Connection error',
-                'status_code': 0
-            }
+            return archive_path
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'status_code': 0
-            }
+            raise Exception(f"Failed to download update: {e}")
     
-    def post(
-        self,
-        url: str,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def download_env(self, unit_uuid: str) -> Dict[str, Any]:
+        """Скачивание env.json"""
         try:
             client = self._get_client()
-            full_url = self._build_url(url)
-            prepared_headers = self._prepare_headers(headers)
+            url = self._build_url(f"units/env/{unit_uuid}")
             
-            if json_data is not None:
-                prepared_headers.setdefault('Content-Type', 'application/json')
-                response = client.post(
-                    full_url,
-                    json=json_data,
-                    headers=prepared_headers,
-                    params=params
-                )
-            else:
-                response = client.post(
-                    full_url,
-                    data=data,
-                    headers=prepared_headers,
-                    params=params
-                )
+            response = client.get(url)
+            response.raise_for_status()
             
-            result = self._handle_response(response)
-            result['success'] = response.is_success
-            return result
-            
-        except httpx.TimeoutException:
-            return {
-                'success': False,
-                'error': 'Request timeout',
-                'status_code': 408
-            }
-        except httpx.ConnectError:
-            return {
-                'success': False,
-                'error': 'Connection error',
-                'status_code': 0
-            }
+            return response.json()
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'status_code': 0
-            }
+            raise Exception(f"Failed to download env: {e}")
     
-    def put(
-        self,
-        url: str,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def download_schema(self, unit_uuid: str) -> Dict[str, Any]:
+        """Скачивание schema.json"""
         try:
             client = self._get_client()
-            full_url = self._build_url(url)
-            prepared_headers = self._prepare_headers(headers)
+            url = self._build_url(f"units/get_current_schema/{unit_uuid}")
             
-            if json_data is not None:
-                prepared_headers.setdefault('Content-Type', 'application/json')
-                response = client.put(
-                    full_url,
-                    json=json_data,
-                    headers=prepared_headers,
-                    params=params
-                )
-            else:
-                response = client.put(
-                    full_url,
-                    data=data,
-                    headers=prepared_headers,
-                    params=params
-                )
+            response = client.get(url)
+            response.raise_for_status()
             
-            result = self._handle_response(response)
-            result['success'] = response.is_success
-            return result
-            
-        except httpx.TimeoutException:
-            return {
-                'success': False,
-                'error': 'Request timeout',
-                'status_code': 408
-            }
-        except httpx.ConnectError:
-            return {
-                'success': False,
-                'error': 'Connection error',
-                'status_code': 0
-            }
+            return response.json()
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'status_code': 0
-            }
+            raise Exception(f"Failed to download schema: {e}")
     
-    def delete(
-        self,
-        url: str,
-        headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def set_state_storage(self, unit_uuid: str, state: str) -> None:
+        """Загрузка состояния в Unit Storage"""
         try:
             client = self._get_client()
-            full_url = self._build_url(url)
-            prepared_headers = self._prepare_headers(headers)
+            url = self._build_url(f"set_state_storage/{unit_uuid}")
             
-            response = client.delete(
-                full_url,
-                headers=prepared_headers,
-                params=params
-            )
-            
-            result = self._handle_response(response)
-            result['success'] = response.is_success
-            return result
-            
-        except httpx.TimeoutException:
-            return {
-                'success': False,
-                'error': 'Request timeout',
-                'status_code': 408
-            }
-        except httpx.ConnectError:
-            return {
-                'success': False,
-                'error': 'Connection error',
-                'status_code': 0
-            }
+            data = {"state": state}
+            response = client.post(url, json=data)
+            response.raise_for_status()
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'status_code': 0
-            }
+            raise Exception(f"Failed to set state storage: {e}")
     
-    def patch(
-        self,
-        url: str,
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def get_state_storage(self, unit_uuid: str) -> str:
+        """Получение состояния из Unit Storage"""
         try:
             client = self._get_client()
-            full_url = self._build_url(url)
-            prepared_headers = self._prepare_headers(headers)
+            url = self._build_url(f"get_state_storage/{unit_uuid}")
             
-            if json_data is not None:
-                prepared_headers.setdefault('Content-Type', 'application/json')
-                response = client.patch(
-                    full_url,
-                    json=json_data,
-                    headers=prepared_headers,
-                    params=params
-                )
-            else:
-                response = client.patch(
-                    full_url,
-                    data=data,
-                    headers=prepared_headers,
-                    params=params
-                )
+            response = client.get(url)
+            response.raise_for_status()
             
-            result = self._handle_response(response)
-            result['success'] = response.is_success
-            return result
-            
-        except httpx.TimeoutException:
-            return {
-                'success': False,
-                'error': 'Request timeout',
-                'status_code': 408
-            }
-        except httpx.ConnectError:
-            return {
-                'success': False,
-                'error': 'Connection error',
-                'status_code': 0
-            }
+            return response.text
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'status_code': 0
-            }
-    
-    def set_default_headers(self, headers: Dict[str, str]) -> None:
-        self._default_headers.update(headers)
-        if self._client:
-            self._client.headers.update(headers)
-    
-    def add_default_header(self, key: str, value: str) -> None:
-        self._default_headers[key] = value
-        if self._client:
-            self._client.headers[key] = value
-    
-    def remove_default_header(self, key: str) -> None:
-        self._default_headers.pop(key, None)
-        if self._client:
-            self._client.headers.pop(key, None)
-    
-    def get_client_info(self) -> Dict[str, Any]:
-        return {
-            'base_url': self.base_url,
-            'timeout': self.timeout,
-            'verify_ssl': self.verify_ssl,
-            'follow_redirects': self.follow_redirects,
-            'default_headers': self._default_headers.copy(),
-            'limits': {
-                'max_keepalive_connections': self._limits.max_keepalive_connections,
-                'max_connections': self._limits.max_connections
-            }
-        }
+            raise Exception(f"Failed to get state storage: {e}")
     
     def close(self) -> None:
         if self._client:
