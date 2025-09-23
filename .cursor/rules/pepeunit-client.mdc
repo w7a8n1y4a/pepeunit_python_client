@@ -6,9 +6,10 @@ alwaysApply: true
 
 - Python-style project from the PyPI website
 - The main essence of the PepeunitClient project
+- context/tz.md contains tasks that PepeunitClient must solve.
+- context/old_client.py - a test client that previously used the backend, containing basic REST requests and examples of almost all interactions via MQTT.
 - The main entity of the PepeunitClient project, which users will interact with; all other entities are auxiliary and, if available to users, only through the PepeunitClient class object
-- The project can be downloaded via pypi in 4 variations: without additional packages, rest, mqtt, all
-- Type code as often as possible, but don't overdo it.
+- Classify code as often as possible, but don't overdo it.
 - Do not expand gitignore and do not delete files from the project root specified in it.
 - Remove all functions, methods, attributes, and classes that are not used in the code base.
 - Do not create redundant implementations, especially methods that will not be used anywhere later on.
@@ -18,5 +19,4 @@ alwaysApply: true
 - Project without tests, we will do the tests later
 - Project without examples of work; we will do them later.
 - Don't touch the readme.md, we'll write it at the very end, even after the tests and examples.
-- context/tz.md contains tasks that PepeunitClient must solve.
-- context/old_client.py - a test client that previously used the backend, containing basic REST requests and examples of almost all interactions via MQTT.
+- Just do what is said in the prompt below, don't try to add anything extra.
