@@ -4,19 +4,25 @@ globs:
 alwaysApply: true
 ---
 
-- Python-style project from the PyPI website
-- The main essence of the PepeunitClient project
-- context/tz.md contains tasks that PepeunitClient must solve.
-- context/old_client.py - a test client that previously used the backend, containing basic REST requests and examples of almost all interactions via MQTT.
-- The main entity of the PepeunitClient project, which users will interact with; all other entities are auxiliary and, if available to users, only through the PepeunitClient class object
-- Classify code as often as possible, but don't overdo it.
-- Do not expand gitignore and do not delete files from the project root specified in it.
-- Remove all functions, methods, attributes, and classes that are not used in the code base.
-- Do not create redundant implementations, especially methods that will not be used anywhere later on.
-- Comments are only allowed for class methods; they are not allowed elsewhere.
-- Comments should be concise, describing what the method does without going into implementation details.
-- Comments can only be in English.
-- Project without tests, we will do the tests later
-- Project without examples of work; we will do them later.
-- Don't touch the readme.md, we'll write it at the very end, even after the tests and examples.
-- Just do what is said in the prompt below, don't try to add anything extra.
+## PRIORITY 1: Core Requirements (MUST follow)
+- Follow PyPI Python packaging standards with proper project structure
+- PepeunitClient is the ONLY public interface - all other classes are internal
+- Implement ALL functionality specified in context/tz.md exactly as described
+- Use context/old_client.py as reference for MQTT/REST interaction patterns
+
+## PRIORITY 2: Code Organization (MUST follow)
+- Remove unused code: functions, methods, attributes, classes not referenced in codebase
+- No redundant implementations - one function per responsibility
+- No comments in code - code must be self-documenting
+- Use type hints and proper class organization
+
+## PRIORITY 3: Project Constraints (MUST follow)  
+- Do not modify: .gitignore, README.md, pyproject.toml structure
+- No test files, no example files, no documentation files
+- Only create/modify files explicitly required by tz.md specifications
+
+## PRIORITY 4: Implementation Rules (MUST follow)
+- Only implement what is explicitly specified in user prompts
+- Use Protocol classes for dependency injection (MQTT/REST clients)
+- Handle missing dependencies gracefully with standard Python errors
+- No print() statements - use proper error handling or logger
