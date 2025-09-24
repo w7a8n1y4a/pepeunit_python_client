@@ -63,3 +63,6 @@ class Logger:
             return []
         
         return FileManager.read_json(self.log_file_path)
+    
+    def reset_log(self) -> None:
+        FileManager.write_json(self.log_file_path, [])
