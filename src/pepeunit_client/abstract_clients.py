@@ -31,16 +31,6 @@ class AbstractPepeunitMqttClient(ABC):
         pass
     
     @abstractmethod
-    def set_input_message_handler(self, handler: Callable) -> None:
-        """
-        Set user-defined input message handler.
-        
-        Args:
-            handler: Function to handle incoming MQTT messages
-        """
-        pass
-    
-    @abstractmethod
     def subscribe_topics(self, topics: List[str]) -> None:
         """
         Subscribe to specific MQTT topics.
@@ -48,11 +38,6 @@ class AbstractPepeunitMqttClient(ABC):
         Args:
             topics: List of topic strings to subscribe to
         """
-        pass
-    
-    @abstractmethod
-    def subscribe_all_schema_topics(self) -> None:
-        """Subscribe to all topics defined in schema (input_base_topic and input_topic)."""
         pass
     
     @abstractmethod
@@ -67,60 +52,12 @@ class AbstractPepeunitMqttClient(ABC):
         pass
     
     @abstractmethod
-    def publish_to_topics(self, topic_key: str, message: str) -> None:
+    def set_input_handler(self, handler: Callable) -> None:
         """
-        Publish message to all topics associated with topic_key from schema.
+        Set user-defined input message handler.
         
         Args:
-            topic_key: Key from schema (e.g., 'output/pepeunit')
-            message: Message content to publish
-        """
-        pass
-    
-    @abstractmethod
-    def run_main_cycle(self, output_handler: Optional[Callable] = None) -> None:
-        """
-        Run the main application cycle.
-        
-        This method should:
-        - Call base_mqtt_output_func() for system state publishing
-        - Call user-provided output_handler if provided
-        - Run in a loop until stop_main_cycle() is called
-        - Handle exceptions and log them appropriately
-        
-        Args:
-            output_handler: Optional user-defined function for custom output logic
-        """
-        pass
-    
-    @abstractmethod
-    def stop_main_cycle(self) -> None:
-        """Stop the main application cycle."""
-        pass
-    
-    def _base_mqtt_input_func(self, msg) -> None:
-        """
-        Base input handler for Pepeunit system messages.
-        
-        This method should handle:
-        - update/pepeunit: Trigger update process
-        - env_update/pepeunit: Download and apply new env.json
-        - schema_update/pepeunit: Download and apply new schema.json
-        - log_sync/pepeunit: Publish full log to output topic
-        
-        Users can override this if they need custom base functionality.
-        """
-        pass
-    
-    def _base_mqtt_output_func(self) -> None:
-        """
-        Base output handler for Pepeunit system messages.
-        
-        This method should handle:
-        - state/pepeunit: Publish system state at configured intervals
-        - log/pepeunit: Publish log messages if enabled
-        
-        Users can override this if they need custom base functionality.
+            handler: Function to handle incoming MQTT messages
         """
         pass
 

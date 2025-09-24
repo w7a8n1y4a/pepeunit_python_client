@@ -89,14 +89,14 @@ class PepeunitClient:
                 'commit_version': self.settings.COMMIT_VERSION,
             }
     
-    def set_input_message_handler(self, handler: Callable) -> None:
+    def set_mqtt_input_handler(self, handler: Callable) -> None:
         self._mqtt_input_handler = handler
         if self._mqtt_client:
             def combined_handler(msg):
                 self._base_mqtt_input_func(msg)
                 if self._mqtt_input_handler:
                     self._mqtt_input_handler(msg)
-            self._mqtt_client.set_input_message_handler(combined_handler)
+            self._mqtt_client.set_input_handler(combined_handler)
 
     def _base_mqtt_input_func(self, msg) -> None:
         topic = msg.topic

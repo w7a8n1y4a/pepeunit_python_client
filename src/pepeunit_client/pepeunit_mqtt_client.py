@@ -55,6 +55,9 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         except Exception as e:
             self.logger.error(f"Error processing MQTT message: {str(e)}")
     
+    def set_input_handler(self, handler: Callable) -> None:
+        self._input_handler = handler
+    
     def subscribe_topics(self, topics: List[str]) -> None:
         if self._client:
             for topic in topics:
