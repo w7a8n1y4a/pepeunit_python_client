@@ -23,13 +23,15 @@ class PepeunitClient:
         enable_mqtt: bool = False,
         enable_rest: bool = False,
         mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
-        rest_client: Optional[AbstractPepeunitRestClient] = None
+        rest_client: Optional[AbstractPepeunitRestClient] = None,
+        cycle_speed: float = 0.1
     ):
         self.env_file_path = env_file_path
         self.schema_file_path = schema_file_path
         self.log_file_path = log_file_path
         self.enable_mqtt = enable_mqtt
         self.enable_rest = enable_rest
+        self.cycle_speed = cycle_speed
         
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
@@ -67,6 +69,11 @@ class PepeunitClient:
         payload_data = json.loads(decoded_payload)
         
         return payload_data['uuid']
+    
+    def set_cycle_speed(self, speed: float) -> None:
+        if speed <= 0:
+            raise ValueError("Cycle speed must be greater than 0")
+        self.cycle_speed = speed
     
     def update_device_program(self, archive_path: str) -> None:
         extract_path = os.path.dirname(archive_path)
@@ -274,7 +281,7 @@ class PepeunitClient:
                 if self._mqtt_output_handler:
                     self._mqtt_output_handler()
                 
-                time.sleep(0.1)
+                time.sleep(self.cycle_speed)
                 
         except Exception as e:
             self.logger.error(f"Error in main cycle: {str(e)}")
