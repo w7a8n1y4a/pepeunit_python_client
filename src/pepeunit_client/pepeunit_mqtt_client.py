@@ -1,6 +1,5 @@
-from typing import Optional, Callable, List, TYPE_CHECKING
+from typing import Optional, Callable, List, TYPE_CHECKING, Any
 
-from .protocols import MQTTClientProtocol
 from .abstract_clients import AbstractPepeunitMqttClient
 
 if TYPE_CHECKING:
@@ -12,10 +11,10 @@ if TYPE_CHECKING:
 class PepeunitMqttClient(AbstractPepeunitMqttClient):
     def __init__(self, settings: 'Settings', schema_manager: 'SchemaManager', logger: 'Logger'):
         super().__init__(settings, schema_manager, logger)
-        self._client: Optional[MQTTClientProtocol] = None
+        self._client: Optional[Any] = None
         self._input_handler: Optional[Callable] = None
         
-    def _get_paho_client(self) -> MQTTClientProtocol:
+    def _get_paho_client(self) -> Any:
         try:
             from paho.mqtt import client as mqtt_client
             import uuid

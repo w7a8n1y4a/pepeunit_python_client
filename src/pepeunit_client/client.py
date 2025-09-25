@@ -32,11 +32,16 @@ class PepeunitClient:
         
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
+        
+        # Сначала создаем logger с пустым MQTT клиентом
+        self.logger = Logger(log_file_path, None, self.schema)
 
         self._mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
         self._rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
         
-        self.logger = Logger(log_file_path, self._mqtt_client, self.schema)
+        # Обновляем logger с созданным MQTT клиентом
+        if self._mqtt_client:
+            self.logger.mqtt_client = self._mqtt_client
         
         self._mqtt_input_handler: Optional[Callable] = None
         self._mqtt_output_handler: Optional[Callable] = None

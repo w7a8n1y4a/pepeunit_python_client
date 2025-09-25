@@ -2,7 +2,6 @@ import json
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
 from .enums import LogLevel
-from .protocols import MQTTClientProtocol
 from .file_manager import FileManager
 
 if TYPE_CHECKING:
@@ -10,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class Logger:
-    def __init__(self, log_file_path: str, mqtt_client: Optional[MQTTClientProtocol] = None, 
+    def __init__(self, log_file_path: str, mqtt_client: Optional[Any] = None, 
                  schema_manager: Optional['SchemaManager'] = None):
         self.log_file_path = log_file_path
         self.mqtt_client = mqtt_client
