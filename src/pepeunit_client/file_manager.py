@@ -9,14 +9,17 @@ from pathlib import Path
 class FileManager:
     @staticmethod
     def read_json(file_path: str) -> Dict[str, Any]:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     
     @staticmethod
     def write_json(file_path: str, data: Dict[str, Any], indent: int = 4) -> None:
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, 'w') as f:
-            json.dump(data, f, indent=indent)
+        directory = os.path.dirname(file_path)
+        
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
     
     @staticmethod
     def copy_file(source_path: str, destination_path: str) -> None:

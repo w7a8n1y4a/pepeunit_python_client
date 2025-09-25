@@ -1,6 +1,7 @@
 import json
 import base64
 import os
+import tempfile
 import time
 from typing import Optional, Dict, Any, List, Callable
 
@@ -33,13 +34,11 @@ class PepeunitClient:
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
         
-        # Сначала создаем logger с пустым MQTT клиентом
         self.logger = Logger(log_file_path, None, self.schema)
 
         self._mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
         self._rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
         
-        # Обновляем logger с созданным MQTT клиентом
         if self._mqtt_client:
             self.logger.mqtt_client = self._mqtt_client
         
@@ -78,11 +77,18 @@ class PepeunitClient:
             import psutil
             
             memory_info = psutil.virtual_memory()
+            
+            try:
+                cpu_freq = psutil.cpu_freq()
+                freq = cpu_freq.current if cpu_freq else 0
+            except (AttributeError, OSError):
+                freq = 0
+            
             return {
                 'millis': round(time.time() * 1000),
                 'mem_free': memory_info.available,
                 'mem_alloc': memory_info.total - memory_info.available,
-                'freq': psutil.cpu_freq().current if psutil.cpu_freq() else 0,
+                'freq': freq,
                 'commit_version': self.settings.COMMIT_VERSION,
             }
         except ImportError:
@@ -165,7 +171,9 @@ class PepeunitClient:
             raise RuntimeError("Both MQTT and REST clients must be enabled for perform_update")
         
         try:
-            archive_path = f"/tmp/update_{self.unit_uuid}.tar.gz"
+            temp_dir = tempfile.gettempdir()
+            archive_path = os.path.join(temp_dir, f"update_{self.unit_uuid}.tar.gz")
+            
             self.download_update(archive_path)
             self.update_device_program(archive_path)
             os.remove(archive_path)

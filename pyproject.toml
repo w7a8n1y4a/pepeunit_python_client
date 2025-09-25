@@ -8,7 +8,7 @@ version = "0.10.0"
 authors = [
   { name="Ivan Serebrennikov", email="admin@silberworks.com" },
 ]
-description = "Мультиплатформенная библиотека для работы с Pepeunit Unit Storage"
+description = "Cross-platform library for working with Pepeunit Unit Storage (Windows, Linux, macOS)"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
