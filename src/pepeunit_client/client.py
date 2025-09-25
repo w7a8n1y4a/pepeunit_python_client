@@ -117,14 +117,87 @@ class PepeunitClient:
         except Exception as e:
             self.logger.error(f"Error in base MQTT input handler: {str(e)}")
     
+    def download_update(self, archive_path: str) -> None:
+        if not self.enable_rest or not self._rest_client:
+            raise RuntimeError("REST client is not enabled or available")
+        
+        self._rest_client.download_update(self.unit_uuid, archive_path)
+        self.logger.info(f"Update archive downloaded to {archive_path}")
+    
+    def download_env(self, file_path: str) -> None:
+        if not self.enable_rest or not self._rest_client:
+            raise RuntimeError("REST client is not enabled or available")
+        
+        self._rest_client.download_env(self.unit_uuid, file_path)
+        self.settings.update_from_file()
+        self.logger.info(f"Environment file downloaded and updated from {file_path}")
+    
+    def download_schema(self, file_path: str) -> None:
+        if not self.enable_rest or not self._rest_client:
+            raise RuntimeError("REST client is not enabled or available")
+        
+        self._rest_client.download_schema(self.unit_uuid, file_path)
+        self.schema.update_from_file()
+        self.logger.info(f"Schema file downloaded and updated from {file_path}")
+    
+    def set_state_storage(self, state: Dict[str, Any]) -> None:
+        if not self.enable_rest or not self._rest_client:
+            raise RuntimeError("REST client is not enabled or available")
+        
+        self._rest_client.set_state_storage(self.unit_uuid, state)
+        self.logger.info("State uploaded to Pepeunit Unit Storage")
+    
+    def get_state_storage(self) -> Dict[str, Any]:
+        if not self.enable_rest or not self._rest_client:
+            raise RuntimeError("REST client is not enabled or available")
+        
+        state = self._rest_client.get_state_storage(self.unit_uuid)
+        self.logger.info("State retrieved from Pepeunit Unit Storage")
+        return state
+    
+    def perform_update(self) -> None:
+        if not (self.enable_mqtt and self.enable_rest):
+            raise RuntimeError("Both MQTT and REST clients must be enabled for perform_update")
+        
+        try:
+            archive_path = f"/tmp/update_{self.unit_uuid}.tar.gz"
+            self.download_update(archive_path)
+            self.update_device_program(archive_path)
+            os.remove(archive_path)
+            self.logger.info("Full update cycle completed successfully")
+        except Exception as e:
+            self.logger.error(f"Update failed: {str(e)}")
+            raise
+    
     def _handle_update(self, payload: str) -> None:
         self.logger.info("Update request received via MQTT")
+        if self.enable_rest and self._rest_client:
+            try:
+                self.perform_update()
+            except Exception as e:
+                self.logger.error(f"Failed to perform update: {str(e)}")
+        else:
+            self.logger.warning("REST client not available for update")
     
     def _handle_env_update(self) -> None:
         self.logger.info("Env update request received via MQTT")
+        if self.enable_rest and self._rest_client:
+            try:
+                self.download_env(self.env_file_path)
+            except Exception as e:
+                self.logger.error(f"Failed to update env: {str(e)}")
+        else:
+            self.logger.warning("REST client not available for env update")
     
     def _handle_schema_update(self) -> None:
         self.logger.info("Schema update request received via MQTT")
+        if self.enable_rest and self._rest_client:
+            try:
+                self.download_schema(self.schema_file_path)
+            except Exception as e:
+                self.logger.error(f"Failed to update schema: {str(e)}")
+        else:
+            self.logger.warning("REST client not available for schema update")
     
     def _handle_log_sync(self) -> None:
         try:
@@ -138,23 +211,29 @@ class PepeunitClient:
             self.logger.error(f"Error during log sync: {str(e)}")
 
     def subscribe_all_schema_topics(self) -> None:
+        if not self.enable_mqtt or not self._mqtt_client:
+            raise RuntimeError("MQTT client is not enabled or available")
+            
         topics = []
         
-        for topic_list in self.schema_manager.input_base_topic.values():
+        for topic_list in self.schema.input_base_topic.values():
             topics.extend(topic_list)
             
-        for topic_list in self.schema_manager.input_topic.values():
+        for topic_list in self.schema.input_topic.values():
             topics.extend(topic_list)
             
         self._mqtt_client.subscribe_topics(topics)
 
     def publish_to_topics(self, topic_key: str, message: str) -> None:
+        if not self.enable_mqtt or not self._mqtt_client:
+            raise RuntimeError("MQTT client is not enabled or available")
+            
         topics = []
         
-        if topic_key in self.schema_manager.output_topic:
-            topics.extend(self.schema_manager.output_topic[topic_key])
-        elif topic_key in self.schema_manager.output_base_topic:
-            topics.extend(self.schema_manager.output_base_topic[topic_key])
+        if topic_key in self.schema.output_topic:
+            topics.extend(self.schema.output_topic[topic_key])
+        elif topic_key in self.schema.output_base_topic:
+            topics.extend(self.schema.output_base_topic[topic_key])
             
         for topic in topics:
             self._mqtt_client.publish(topic, message)
