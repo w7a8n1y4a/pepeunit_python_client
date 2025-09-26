@@ -224,6 +224,8 @@ class PepeunitClient:
         if self.enable_rest and self.rest_client:
             try:
                 self.download_schema(self.schema_file_path)
+                if self.enable_mqtt and self.mqtt_client:
+                    self.subscribe_all_schema_topics()
             except Exception as e:
                 self.logger.error(f"Failed to update schema: {str(e)}")
         else:
