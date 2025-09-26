@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import tarfile
+import zlib
 from typing import Any, Dict, List
 from pathlib import Path
 
@@ -35,8 +36,42 @@ class FileManager:
     
     @staticmethod
     def extract_tar_gz(archive_path: str, extract_path: str) -> None:
-        with tarfile.open(archive_path, 'r:gz') as tar:
-            tar.extractall(extract_path)
+        FileManager.extract_pepeunit_archive(archive_path, extract_path)
+    
+    @staticmethod
+    def extract_pepeunit_archive(file_path: str, extract_path: str) -> None:
+        with open(file_path, 'rb') as f:
+            producer = zlib.decompressobj(wbits=9)
+            tar_data = producer.decompress(f.read()) + producer.flush()
+            tar_filepath = f'{os.path.dirname(file_path)}/temp_update.tar'
+            with open(tar_filepath, 'wb') as tar_file:
+                tar_file.write(tar_data)
+            try:
+                shutil.unpack_archive(tar_filepath, extract_path, 'tar')
+            finally:
+                if os.path.exists(tar_filepath):
+                    os.remove(tar_filepath)
+    
+    @staticmethod
+    def copy_directory_contents(source_path: str, destination_path: str) -> None:
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Source directory does not exist: {source_path}")
+        
+        os.makedirs(destination_path, exist_ok=True)
+        
+        for item in os.listdir(source_path):
+            source_item = os.path.join(source_path, item)
+            destination_item = os.path.join(destination_path, item)
+            
+            if os.path.isdir(source_item):
+                shutil.copytree(source_item, destination_item, dirs_exist_ok=True)
+            else:
+                shutil.copy2(source_item, destination_item)
+    
+    @staticmethod
+    def remove_directory(directory_path: str) -> None:
+        if os.path.exists(directory_path):
+            shutil.rmtree(directory_path)
     
     @staticmethod
     def append_to_json_list(file_path: str, item: Dict[str, Any]) -> None:

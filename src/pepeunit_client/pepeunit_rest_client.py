@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any, TYPE_CHECKING
 
 from .file_manager import FileManager
@@ -40,6 +41,10 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         response.raise_for_status()
         
         env_data = response.json()
+        
+        if isinstance(env_data, str):
+            env_data = json.loads(env_data)
+        
         FileManager.write_json(file_path, env_data)
     
     def download_schema(self, unit_uuid: str, file_path: str) -> None:
@@ -50,6 +55,10 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         response.raise_for_status()
         
         schema_data = response.json()
+        
+        if isinstance(schema_data, str):
+            schema_data = json.loads(schema_data)
+        
         FileManager.write_json(file_path, schema_data)
     
     def set_state_storage(self, unit_uuid: str, state: Dict[str, Any]) -> None:

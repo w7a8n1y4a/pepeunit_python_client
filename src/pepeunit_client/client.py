@@ -76,8 +76,17 @@ class PepeunitClient:
         self.cycle_speed = speed
     
     def update_device_program(self, archive_path: str) -> None:
-        extract_path = os.path.dirname(archive_path)
-        FileManager.extract_tar_gz(archive_path, extract_path)
+        import tempfile
+        
+        unit_directory = os.path.dirname(self.env_file_path)
+        
+        with tempfile.TemporaryDirectory() as temp_extract_dir:
+            FileManager.extract_tar_gz(archive_path, temp_extract_dir)
+            
+            FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
+            
+        self.settings.update_from_file()
+        self.logger.info(f"Device program updated from {archive_path}")
     
     def get_system_state(self) -> Dict[str, Any]:
         try:
