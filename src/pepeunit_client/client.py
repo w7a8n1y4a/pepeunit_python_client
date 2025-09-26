@@ -38,11 +38,11 @@ class PepeunitClient:
         
         self.logger = Logger(log_file_path, None, self.schema)
 
-        self._mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
-        self._rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
+        self.mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
+        self.rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
         
-        if self._mqtt_client:
-            self.logger.mqtt_client = self._mqtt_client
+        if self.mqtt_client:
+            self.logger.mqtt_client = self.mqtt_client
         
         self._mqtt_input_handler: Optional[Callable] = None
         self._mqtt_output_handler: Optional[Callable] = None
@@ -118,12 +118,12 @@ class PepeunitClient:
     
     def set_mqtt_input_handler(self, handler: Callable) -> None:
         self._mqtt_input_handler = handler
-        if self._mqtt_client:
+        if self.mqtt_client:
             def combined_handler(msg):
                 self._base_mqtt_input_func(msg)
                 if self._mqtt_input_handler:
                     self._mqtt_input_handler(msg)
-            self._mqtt_client.set_input_handler(combined_handler)
+            self.mqtt_client.set_input_handler(combined_handler)
 
     def _base_mqtt_input_func(self, msg) -> None:
         topic = msg.topic
@@ -145,40 +145,40 @@ class PepeunitClient:
             self.logger.error(f"Error in base MQTT input handler: {str(e)}")
     
     def download_update(self, archive_path: str) -> None:
-        if not self.enable_rest or not self._rest_client:
+        if not self.enable_rest or not self.rest_client:
             raise RuntimeError("REST client is not enabled or available")
         
-        self._rest_client.download_update(self.unit_uuid, archive_path)
+        self.rest_client.download_update(self.unit_uuid, archive_path)
         self.logger.info(f"Update archive downloaded to {archive_path}")
     
     def download_env(self, file_path: str) -> None:
-        if not self.enable_rest or not self._rest_client:
+        if not self.enable_rest or not self.rest_client:
             raise RuntimeError("REST client is not enabled or available")
         
-        self._rest_client.download_env(self.unit_uuid, file_path)
+        self.rest_client.download_env(self.unit_uuid, file_path)
         self.settings.update_from_file()
         self.logger.info(f"Environment file downloaded and updated from {file_path}")
     
     def download_schema(self, file_path: str) -> None:
-        if not self.enable_rest or not self._rest_client:
+        if not self.enable_rest or not self.rest_client:
             raise RuntimeError("REST client is not enabled or available")
         
-        self._rest_client.download_schema(self.unit_uuid, file_path)
+        self.rest_client.download_schema(self.unit_uuid, file_path)
         self.schema.update_from_file()
         self.logger.info(f"Schema file downloaded and updated from {file_path}")
     
     def set_state_storage(self, state: Dict[str, Any]) -> None:
-        if not self.enable_rest or not self._rest_client:
+        if not self.enable_rest or not self.rest_client:
             raise RuntimeError("REST client is not enabled or available")
         
-        self._rest_client.set_state_storage(self.unit_uuid, state)
+        self.rest_client.set_state_storage(self.unit_uuid, state)
         self.logger.info("State uploaded to Pepeunit Unit Storage")
     
     def get_state_storage(self) -> Dict[str, Any]:
-        if not self.enable_rest or not self._rest_client:
+        if not self.enable_rest or not self.rest_client:
             raise RuntimeError("REST client is not enabled or available")
         
-        state = self._rest_client.get_state_storage(self.unit_uuid)
+        state = self.rest_client.get_state_storage(self.unit_uuid)
         self.logger.info("State retrieved from Pepeunit Unit Storage")
         return state
     
@@ -200,7 +200,7 @@ class PepeunitClient:
     
     def _handle_update(self, payload: str) -> None:
         self.logger.info("Update request received via MQTT")
-        if self.enable_rest and self._rest_client:
+        if self.enable_rest and self.rest_client:
             try:
                 self.perform_update()
             except Exception as e:
@@ -210,7 +210,7 @@ class PepeunitClient:
     
     def _handle_env_update(self) -> None:
         self.logger.info("Env update request received via MQTT")
-        if self.enable_rest and self._rest_client:
+        if self.enable_rest and self.rest_client:
             try:
                 self.download_env(self.env_file_path)
             except Exception as e:
@@ -220,7 +220,7 @@ class PepeunitClient:
     
     def _handle_schema_update(self) -> None:
         self.logger.info("Schema update request received via MQTT")
-        if self.enable_rest and self._rest_client:
+        if self.enable_rest and self.rest_client:
             try:
                 self.download_schema(self.schema_file_path)
             except Exception as e:
@@ -233,14 +233,14 @@ class PepeunitClient:
             if 'log/pepeunit' in self.schema.output_base_topic:
                 topic = self.schema.output_base_topic['log/pepeunit'][0]
                 log_data = self.logger.get_full_log()
-                if self._mqtt_client:
-                    self._mqtt_client.publish(topic, json.dumps(log_data))
+                if self.mqtt_client:
+                    self.mqtt_client.publish(topic, json.dumps(log_data))
                 self.logger.info("Log sync completed")
         except Exception as e:
             self.logger.error(f"Error during log sync: {str(e)}")
 
     def subscribe_all_schema_topics(self) -> None:
-        if not self.enable_mqtt or not self._mqtt_client:
+        if not self.enable_mqtt or not self.mqtt_client:
             raise RuntimeError("MQTT client is not enabled or available")
             
         topics = []
@@ -251,10 +251,10 @@ class PepeunitClient:
         for topic_list in self.schema.input_topic.values():
             topics.extend(topic_list)
             
-        self._mqtt_client.subscribe_topics(topics)
+        self.mqtt_client.subscribe_topics(topics)
 
     def publish_to_topics(self, topic_key: str, message: str) -> None:
-        if not self.enable_mqtt or not self._mqtt_client:
+        if not self.enable_mqtt or not self.mqtt_client:
             raise RuntimeError("MQTT client is not enabled or available")
             
         topics = []
@@ -265,7 +265,7 @@ class PepeunitClient:
             topics.extend(self.schema.output_base_topic[topic_key])
             
         for topic in topics:
-            self._mqtt_client.publish(topic, message)
+            self.mqtt_client.publish(topic, message)
     
     def _base_mqtt_output_handler(self) -> None:
         current_time = time.time()
@@ -274,8 +274,8 @@ class PepeunitClient:
             if current_time - self._last_state_send >= self.settings.STATE_SEND_INTERVAL:
                 topic = self.schema.output_base_topic['state/pepeunit'][0]
                 state_data = self.get_system_state()
-                if self._mqtt_client:
-                    self._mqtt_client.publish(topic, json.dumps(state_data))
+                if self.mqtt_client:
+                    self.mqtt_client.publish(topic, json.dumps(state_data))
                 self._last_state_send = current_time
     
     def run_main_cycle(self, output_handler: Optional[Callable] = None) -> None:

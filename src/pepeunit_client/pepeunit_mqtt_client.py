@@ -16,10 +16,10 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         
     def _get_paho_client(self) -> Any:
         try:
-            from paho.mqtt import client as mqtt_client
+            from paho.mqtt import client as mqtt_client_paho
             import uuid
             
-            client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1, str(uuid.uuid4()))
+            client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, str(uuid.uuid4()))
             client.username_pw_set(self.settings.PEPEUNIT_TOKEN, '')
             client.on_connect = self._on_connect
             client.on_message = self._on_message
