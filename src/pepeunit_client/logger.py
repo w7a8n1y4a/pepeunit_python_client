@@ -1,7 +1,7 @@
 import json
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
-from .enums import LogLevel
+from .enums import LogLevel, BaseOutputTopicType
 from .file_manager import FileManager
 
 if TYPE_CHECKING:
@@ -32,8 +32,8 @@ class Logger:
     
     def _send_mqtt(self, log_entry: Dict[str, Any]) -> None:
         try:
-            if 'log/pepeunit' in self.schema_manager.output_base_topic:
-                topic = self.schema_manager.output_base_topic['log/pepeunit'][0]
+            if BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema_manager.output_base_topic:
+                topic = self.schema_manager.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
                 self.mqtt_client.publish(topic, json.dumps(log_entry))
         except Exception:
             pass

@@ -12,6 +12,7 @@ from .schema_manager import SchemaManager
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient
 from .pepeunit_mqtt_client import PepeunitMqttClient
 from .pepeunit_rest_client import PepeunitRestClient
+from .enums import BaseInputTopicType, BaseOutputTopicType
 
 
 class PepeunitClient:
@@ -132,13 +133,13 @@ class PepeunitClient:
         try:
             for topic_key in self.schema.input_base_topic:
                 if topic in self.schema.input_base_topic[topic_key]:
-                    if topic_key == 'update/pepeunit':
+                    if topic_key == BaseInputTopicType.UPDATE_PEPEUNIT.value:
                         self._handle_update(payload)
-                    elif topic_key == 'env_update/pepeunit':
+                    elif topic_key == BaseInputTopicType.ENV_UPDATE_PEPEUNIT.value:
                         self._handle_env_update()
-                    elif topic_key == 'schema_update/pepeunit':
+                    elif topic_key == BaseInputTopicType.SCHEMA_UPDATE_PEPEUNIT.value:
                         self._handle_schema_update()
-                    elif topic_key == 'log_sync/pepeunit':
+                    elif topic_key == BaseInputTopicType.LOG_SYNC_PEPEUNIT.value:
                         self._handle_log_sync()
                     break
         except Exception as e:
@@ -230,8 +231,8 @@ class PepeunitClient:
     
     def _handle_log_sync(self) -> None:
         try:
-            if 'log/pepeunit' in self.schema.output_base_topic:
-                topic = self.schema.output_base_topic['log/pepeunit'][0]
+            if BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema.output_base_topic:
+                topic = self.schema.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
                 log_data = self.logger.get_full_log()
                 if self.mqtt_client:
                     self.mqtt_client.publish(topic, json.dumps(log_data))
@@ -270,9 +271,9 @@ class PepeunitClient:
     def _base_mqtt_output_handler(self) -> None:
         current_time = time.time()
         
-        if 'state/pepeunit' in self.schema.output_base_topic:
+        if BaseOutputTopicType.STATE_PEPEUNIT.value in self.schema.output_base_topic:
             if current_time - self._last_state_send >= self.settings.STATE_SEND_INTERVAL:
-                topic = self.schema.output_base_topic['state/pepeunit'][0]
+                topic = self.schema.output_base_topic[BaseOutputTopicType.STATE_PEPEUNIT.value][0]
                 state_data = self.get_system_state()
                 if self.mqtt_client:
                     self.mqtt_client.publish(topic, json.dumps(state_data))
