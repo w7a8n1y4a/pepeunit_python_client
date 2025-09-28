@@ -6,16 +6,39 @@ from .file_manager import FileManager
 
 if TYPE_CHECKING:
     from .schema_manager import SchemaManager
+    from .settings import Settings
 
 
 class Logger:
     def __init__(self, log_file_path: str, mqtt_client: Optional[Any] = None, 
-                 schema_manager: Optional['SchemaManager'] = None):
+                 schema_manager: Optional['SchemaManager'] = None,
+                 settings: Optional['Settings'] = None):
         self.log_file_path = log_file_path
         self.mqtt_client = mqtt_client
         self.schema_manager = schema_manager
+        self.settings = settings
+    
+    def _string_to_log_level(self, level_str: str) -> LogLevel:
+        level_mapping = {
+            'Debug': LogLevel.DEBUG,
+            'Info': LogLevel.INFO,
+            'Warning': LogLevel.WARNING,
+            'Error': LogLevel.ERROR,
+            'Critical': LogLevel.CRITICAL,
+        }
+        return level_mapping.get(level_str, LogLevel.DEBUG)
+    
+    def _should_log(self, level: LogLevel) -> bool:
+        if not self.settings:
+            return True
+        
+        minimal_level = self._string_to_log_level(self.settings.MINIMAL_LOG_LEVEL)
+        return level.get_int_level() >= minimal_level.get_int_level()
     
     def _log(self, level: LogLevel, message: str) -> None:
+        if not self._should_log(level):
+            return
+            
         log_entry = {
             'level': level.value,
             'text': message,

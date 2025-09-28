@@ -16,6 +16,7 @@ class Settings:
     COMMIT_VERSION: str = ''
     PING_INTERVAL: int = 30
     STATE_SEND_INTERVAL: int = 300
+    MINIMAL_LOG_LEVEL: str = 'Debug'
 
     def __init__(self, env_file_path: Optional[str] = None, **kwargs) -> None:
         self.env_file_path = env_file_path
