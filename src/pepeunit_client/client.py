@@ -49,7 +49,7 @@ class PepeunitClient:
         self._mqtt_output_handler: Optional[Callable] = None
 
         self._running = False
-        self._last_state_send = 0
+        self._previous_cycle_time = 0
         
     def _get_default_mqtt_client(self) -> Optional[AbstractPepeunitMqttClient]:
         return PepeunitMqttClient(self.settings, self.schema, self.logger)
@@ -75,6 +75,13 @@ class PepeunitClient:
         if speed <= 0:
             raise ValueError("Cycle speed must be greater than 0")
         self.cycle_speed = speed
+    
+    def set_previous_cycle_time(self, timestamp: float) -> None:
+        self._previous_cycle_time = timestamp
+    
+    @property
+    def previous_cycle_time(self) -> float:
+        return self._previous_cycle_time
     
     def update_device_program(self, archive_path: str) -> None:
         import tempfile
@@ -123,7 +130,7 @@ class PepeunitClient:
             def combined_handler(msg):
                 self._base_mqtt_input_func(msg)
                 if self._mqtt_input_handler:
-                    self._mqtt_input_handler(msg)
+                    self._mqtt_input_handler(self, msg)
             self.mqtt_client.set_input_handler(combined_handler)
 
     def _base_mqtt_input_func(self, msg) -> None:
@@ -274,12 +281,11 @@ class PepeunitClient:
         current_time = time.time()
         
         if BaseOutputTopicType.STATE_PEPEUNIT.value in self.schema.output_base_topic:
-            if current_time - self._last_state_send >= self.settings.STATE_SEND_INTERVAL:
+            if current_time - self.previous_cycle_time >= self.settings.STATE_SEND_INTERVAL:
                 topic = self.schema.output_base_topic[BaseOutputTopicType.STATE_PEPEUNIT.value][0]
                 state_data = self.get_system_state()
                 if self.mqtt_client:
                     self.mqtt_client.publish(topic, json.dumps(state_data))
-                self._last_state_send = current_time
     
     def run_main_cycle(self, output_handler: Optional[Callable] = None) -> None:
         self._running = True
@@ -288,10 +294,14 @@ class PepeunitClient:
         
         try:
             while self._running:
+                cycle_start_time = time.time()
+                
                 self._base_mqtt_output_handler()
                 
                 if self._mqtt_output_handler:
-                    self._mqtt_output_handler()
+                    self._mqtt_output_handler(self)
+                
+                self.set_previous_cycle_time(cycle_start_time)
                 
                 time.sleep(self.cycle_speed)
                 
