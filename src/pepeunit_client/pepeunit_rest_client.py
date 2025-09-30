@@ -4,6 +4,12 @@ from typing import Dict, Any, TYPE_CHECKING
 from .file_manager import FileManager
 from .abstract_clients import AbstractPepeunitRestClient
 
+# Import for mocking in tests
+try:
+    import httpx
+except ImportError:
+    httpx = None
+
 if TYPE_CHECKING:
     from .settings import Settings
 
@@ -14,11 +20,9 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         self._httpx_client = self._get_httpx_client()
     
     def _get_httpx_client(self):
-        try:
-            import httpx
-            return httpx
-        except ImportError:
+        if httpx is None:
             raise ImportError("httpx is required for REST functionality")
+        return httpx
     
     
     def download_update(self, unit_uuid: str, file_path: str) -> None:

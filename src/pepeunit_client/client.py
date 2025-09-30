@@ -3,7 +3,15 @@ import base64
 import os
 import tempfile
 import time
+import sys
+import subprocess
 from typing import Optional, Dict, Any, List, Callable
+
+# Import for mocking in tests
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from .settings import Settings
 from .file_manager import FileManager
@@ -77,9 +85,6 @@ class PepeunitClient:
         self.cycle_speed = speed
     
     def update_device_program(self, archive_path: str) -> None:
-        import tempfile
-        import sys
-        import subprocess
         
         unit_directory = os.path.dirname(self.env_file_path) or os.getcwd()
         with tempfile.TemporaryDirectory() as temp_extract_dir:
@@ -96,32 +101,33 @@ class PepeunitClient:
         sys.exit(0)
     
     def get_system_state(self) -> Dict[str, Any]:
-        try:
-            import psutil
-            
-            memory_info = psutil.virtual_memory()
-            
+        if psutil is not None:
             try:
-                cpu_freq = psutil.cpu_freq()
-                freq = cpu_freq.current if cpu_freq else 0
-            except (AttributeError, OSError):
-                freq = 0
-            
-            return {
-                'millis': round(time.time() * 1000),
-                'mem_free': memory_info.available,
-                'mem_alloc': memory_info.total - memory_info.available,
-                'freq': freq,
-                'commit_version': self.settings.COMMIT_VERSION,
-            }
-        except ImportError:
-            return {
-                'millis': round(time.time() * 1000),
-                'mem_free': 0,
-                'mem_alloc': 0,
-                'freq': 0,
-                'commit_version': self.settings.COMMIT_VERSION,
-            }
+                memory_info = psutil.virtual_memory()
+                
+                try:
+                    cpu_freq = psutil.cpu_freq()
+                    freq = cpu_freq.current if cpu_freq else 0
+                except (AttributeError, OSError):
+                    freq = 0
+                
+                return {
+                    'millis': round(time.time() * 1000),
+                    'mem_free': memory_info.available,
+                    'mem_alloc': memory_info.total - memory_info.available,
+                    'freq': freq,
+                    'commit_version': self.settings.COMMIT_VERSION,
+                }
+            except Exception:
+                pass
+        
+        return {
+            'millis': round(time.time() * 1000),
+            'mem_free': 0,
+            'mem_alloc': 0,
+            'freq': 0,
+            'commit_version': self.settings.COMMIT_VERSION,
+        }
     
     def set_mqtt_input_handler(self, handler: Callable) -> None:
         self._mqtt_input_handler = handler

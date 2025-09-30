@@ -94,31 +94,37 @@ class TestLogger:
         mock_mqtt_client = Mock()
         mock_logger.mqtt_client = mock_mqtt_client
         
-        # Настраиваем схему с топиком для логов
-        mock_logger.schema_manager.output_base_topic = {
+        # Настраиваем схему с топиком для логов - патчим _schema_data
+        test_schema_data = mock_logger.schema_manager._schema_data.copy()
+        test_schema_data['output_base_topic'] = {
             BaseOutputTopicType.LOG_PEPEUNIT.value: ['test/log/topic']
         }
         
-        log_entry = {'level': 'Info', 'text': 'Test message'}
-        
-        mock_logger._send_mqtt(log_entry)
-        
-        mock_mqtt_client.publish.assert_called_once_with(
-            'test/log/topic',
-            json.dumps(log_entry)
-        )
+        with patch.object(mock_logger.schema_manager, '_schema_data', test_schema_data):
+            log_entry = {'level': 'Info', 'text': 'Test message'}
+            
+            mock_logger._send_mqtt(log_entry)
+            
+            mock_mqtt_client.publish.assert_called_once_with(
+                'test/log/topic', 
+                json.dumps(log_entry)
+            )
 
     def test_send_mqtt_no_topic(self, mock_logger):
         """Тест отправки MQTT без топика в схеме"""
         mock_mqtt_client = Mock()
         mock_logger.mqtt_client = mock_mqtt_client
-        mock_logger.schema_manager.output_base_topic = {}
         
-        log_entry = {'level': 'Info', 'text': 'Test message'}
+        # Настраиваем схему без топиков - патчим _schema_data
+        test_schema_data = mock_logger.schema_manager._schema_data.copy()
+        test_schema_data['output_base_topic'] = {}
         
-        # Не должно вызывать исключение
-        mock_logger._send_mqtt(log_entry)
-        mock_mqtt_client.publish.assert_not_called()
+        with patch.object(mock_logger.schema_manager, '_schema_data', test_schema_data):
+            log_entry = {'level': 'Info', 'text': 'Test message'}
+            
+            # Не должно вызывать исключение
+            mock_logger._send_mqtt(log_entry)
+            mock_mqtt_client.publish.assert_not_called()
 
     def test_send_mqtt_exception_handling(self, mock_logger):
         """Тест обработки исключений при отправке MQTT"""
@@ -126,14 +132,17 @@ class TestLogger:
         mock_mqtt_client.publish.side_effect = Exception("MQTT Error")
         mock_logger.mqtt_client = mock_mqtt_client
         
-        mock_logger.schema_manager.output_base_topic = {
+        # Настраиваем схему с топиком для логов - патчим _schema_data
+        test_schema_data = mock_logger.schema_manager._schema_data.copy()
+        test_schema_data['output_base_topic'] = {
             BaseOutputTopicType.LOG_PEPEUNIT.value: ['test/log/topic']
         }
         
-        log_entry = {'level': 'Info', 'text': 'Test message'}
-        
-        # Не должно вызывать исключение
-        mock_logger._send_mqtt(log_entry)
+        with patch.object(mock_logger.schema_manager, '_schema_data', test_schema_data):
+            log_entry = {'level': 'Info', 'text': 'Test message'}
+            
+            # Не должно вызывать исключение
+            mock_logger._send_mqtt(log_entry)
 
     @patch('pepeunit_client.logger.datetime')
     def test_get_current_datetime(self, mock_datetime, mock_logger):
@@ -241,8 +250,9 @@ class TestLogger:
         log_file = os.path.join(temp_dir, 'integration_log.json')
         mock_mqtt_client = Mock()
         
-        # Настройка схемы
-        mock_schema_manager.output_base_topic = {
+        # Настройка схемы - патчим _schema_data
+        test_schema_data = mock_schema_manager._schema_data.copy()
+        test_schema_data['output_base_topic'] = {
             BaseOutputTopicType.LOG_PEPEUNIT.value: ['test/integration/log']
         }
         
@@ -251,10 +261,11 @@ class TestLogger:
         
         logger = Logger(log_file, mock_mqtt_client, mock_schema_manager, mock_settings)
         
-        # Логируем сообщения разных уровней
-        logger.debug('This should be filtered out')  # Не должно логироваться
-        logger.info('This should be logged')         # Должно логироваться
-        logger.error('This is an error')             # Должно логироваться
+        with patch.object(mock_schema_manager, '_schema_data', test_schema_data):
+            # Логируем сообщения разных уровней
+            logger.debug('This should be filtered out')  # Не должно логироваться
+            logger.info('This should be logged')         # Должно логироваться
+            logger.error('This is an error')             # Должно логироваться
         
         # Проверяем что файл лога создан и содержит правильные записи
         assert os.path.exists(log_file)

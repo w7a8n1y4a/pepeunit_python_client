@@ -1,5 +1,6 @@
 import json
 from typing import Optional, Dict, Any, TYPE_CHECKING
+import datetime
 
 from .enums import LogLevel, BaseOutputTopicType
 from .file_manager import FileManager
@@ -62,7 +63,6 @@ class Logger:
             pass
     
     def _get_current_datetime(self) -> str:
-        import datetime
         return datetime.datetime.utcnow().isoformat()
     
     def debug(self, message: str) -> None:

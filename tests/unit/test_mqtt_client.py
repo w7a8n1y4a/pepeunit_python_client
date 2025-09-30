@@ -108,6 +108,7 @@ class TestPepeunitMqttClient:
 
     def test_on_connect_success(self, mock_settings, mock_schema_manager, mock_logger):
         """Тест успешного callback подключения"""
+        mock_logger.info = Mock()
         client = PepeunitMqttClient(mock_settings, mock_schema_manager, mock_logger)
         
         client._on_connect(None, None, None, 0)  # rc=0 означает успех
@@ -116,6 +117,7 @@ class TestPepeunitMqttClient:
 
     def test_on_connect_failure(self, mock_settings, mock_schema_manager, mock_logger):
         """Тест неуспешного callback подключения"""
+        mock_logger.critical = Mock()
         client = PepeunitMqttClient(mock_settings, mock_schema_manager, mock_logger)
         
         client._on_connect(None, None, None, 1)  # rc=1 означает ошибку
@@ -149,6 +151,7 @@ class TestPepeunitMqttClient:
 
     def test_on_message_handler_exception(self, mock_settings, mock_schema_manager, mock_logger):
         """Тест обработки исключения в обработчике сообщений"""
+        mock_logger.error = Mock()
         client = PepeunitMqttClient(mock_settings, mock_schema_manager, mock_logger)
         
         mock_handler = Mock()
@@ -258,6 +261,9 @@ class TestPepeunitMqttClient:
 
     def test_connection_callback_integration(self, mock_settings, mock_schema_manager, mock_logger):
         """Интеграционный тест callback'ов подключения"""
+        # Мокируем методы логгера
+        mock_logger.info = Mock()
+        mock_logger.critical = Mock()
         client = PepeunitMqttClient(mock_settings, mock_schema_manager, mock_logger)
         
         # Тестируем различные коды результата
@@ -269,7 +275,8 @@ class TestPepeunitMqttClient:
         ]
         
         for rc, expected_message, expected_level in test_cases:
-            mock_logger.reset_mock()
+            mock_logger.info.reset_mock()
+            mock_logger.critical.reset_mock()
             
             client._on_connect(None, None, None, rc)
             

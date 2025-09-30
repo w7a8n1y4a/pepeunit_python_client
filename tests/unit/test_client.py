@@ -5,12 +5,23 @@ import json
 import os
 import tempfile
 import time
+import base64
 from unittest.mock import Mock, patch, MagicMock
 
 import pytest
 
 from pepeunit_client.client import PepeunitClient
 from pepeunit_client.enums import BaseInputTopicType, BaseOutputTopicType
+
+
+def create_jwt_token(uuid: str) -> str:
+    """Helper функция для создания JWT токена с заданным UUID"""
+    header = base64.b64encode(b'{"alg":"HS256","typ":"JWT"}').decode().rstrip('=')
+    payload_data = {"uuid": uuid}
+    payload_json = json.dumps(payload_data)
+    payload = base64.b64encode(payload_json.encode()).decode().rstrip('=')
+    signature = "test_signature"
+    return f"{header}.{payload}.{signature}"
 
 
 class TestPepeunitClientInit:
@@ -87,15 +98,13 @@ class TestPepeunitClientProperties:
 
     def test_unit_uuid_invalid_token_format(self, env_file, schema_file, log_file):
         """Тест исключения при невалидном формате токена"""
-        with patch('pepeunit_client.settings.Settings') as MockSettings:
-            mock_settings = Mock()
-            mock_settings.PEPEUNIT_TOKEN = "invalid.token"  # Только 2 части вместо 3
-            MockSettings.return_value = mock_settings
-            
-            client = PepeunitClient(env_file, schema_file, log_file)
-            
-            with pytest.raises(ValueError, match="Invalid JWT token format"):
-                _ = client.unit_uuid
+        client = PepeunitClient(env_file, schema_file, log_file)
+        
+        # Подменяем токен в уже созданном клиенте
+        client.settings.PEPEUNIT_TOKEN = "invalid.token"  # Только 2 части вместо 3
+        
+        with pytest.raises(ValueError, match="Invalid JWT token format"):
+            _ = client.unit_uuid
 
 
 class TestPepeunitClientMethods:
@@ -203,10 +212,12 @@ class TestPepeunitClientMethods:
         """Тест успешного скачивания обновления"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_rest=True, rest_client=mock_rest_client)
         
-        with patch.object(client, 'unit_uuid', 'test-uuid'):
-            client.download_update('/path/to/update.tar.gz')
-            
-            mock_rest_client.download_update.assert_called_once_with('test-uuid', '/path/to/update.tar.gz')
+        # Устанавливаем токен с нужным UUID
+        client.settings.PEPEUNIT_TOKEN = create_jwt_token('test-uuid')
+        
+        client.download_update('/path/to/update.tar.gz')
+        
+        mock_rest_client.download_update.assert_called_once_with('test-uuid', '/path/to/update.tar.gz')
 
     def test_download_update_no_rest(self, env_file, schema_file, log_file):
         """Тест исключения при скачивании обновления без REST"""
@@ -219,9 +230,10 @@ class TestPepeunitClientMethods:
         """Тест успешного скачивания env файла"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_rest=True, rest_client=mock_rest_client)
         
-        with patch.object(client, 'unit_uuid', 'test-uuid'), \
-             patch.object(client.settings, 'load_from_file') as mock_load:
-            
+        # Устанавливаем токен с нужным UUID
+        client.settings.PEPEUNIT_TOKEN = create_jwt_token('test-uuid')
+        
+        with patch.object(client.settings, 'load_from_file') as mock_load:
             client.download_env('/path/to/env.json')
             
             mock_rest_client.download_env.assert_called_once_with('test-uuid', '/path/to/env.json')
@@ -302,59 +314,76 @@ class TestPepeunitClientMQTTHandlers:
     def test_base_mqtt_input_func_update(self, env_file, schema_file, log_file, mock_mqtt_message):
         """Тест обработки сообщения об обновлении"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True, enable_rest=True)
-        client.schema.input_base_topic = {
+        
+        # Патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['input_base_topic'] = {
             BaseInputTopicType.UPDATE_PEPEUNIT.value: ['test/update/topic']
         }
         
-        with patch.object(client, '_handle_update') as mock_handle:
-            msg = mock_mqtt_message('test/update/topic', 'update payload')
-            client._base_mqtt_input_func(msg)
-            
-            mock_handle.assert_called_once_with('update payload')
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            with patch.object(client, '_handle_update') as mock_handle:
+                msg = mock_mqtt_message('test/update/topic', 'update payload')
+                client._base_mqtt_input_func(msg)
+                
+                mock_handle.assert_called_once_with('update payload')
 
     def test_base_mqtt_input_func_env_update(self, env_file, schema_file, log_file, mock_mqtt_message):
         """Тест обработки сообщения об обновлении env"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True, enable_rest=True)
-        client.schema.input_base_topic = {
+        
+        # Патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['input_base_topic'] = {
             BaseInputTopicType.ENV_UPDATE_PEPEUNIT.value: ['test/env_update/topic']
         }
         
-        with patch.object(client, '_handle_env_update') as mock_handle:
-            msg = mock_mqtt_message('test/env_update/topic', 'env payload')
-            client._base_mqtt_input_func(msg)
-            
-            mock_handle.assert_called_once()
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            with patch.object(client, '_handle_env_update') as mock_handle:
+                msg = mock_mqtt_message('test/env_update/topic', 'env payload')
+                client._base_mqtt_input_func(msg)
+                
+                mock_handle.assert_called_once()
 
     def test_base_mqtt_input_func_exception_handling(self, env_file, schema_file, log_file, mock_mqtt_message):
         """Тест обработки исключений в MQTT обработчике"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True)
-        client.schema.input_base_topic = {
+        
+        # Патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['input_base_topic'] = {
             BaseInputTopicType.UPDATE_PEPEUNIT.value: ['test/update/topic']
         }
         
-        with patch.object(client, '_handle_update', side_effect=Exception("Handler error")):
-            msg = mock_mqtt_message('test/update/topic', 'payload')
-            client._base_mqtt_input_func(msg)
-            
-            # Проверяем что ошибка залогирована
-            client.logger.error.assert_called_with("Error in base MQTT input handler: Handler error")
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            with patch.object(client, '_handle_update', side_effect=Exception("Handler error")):
+                with patch.object(client.logger, 'error') as mock_error:
+                    msg = mock_mqtt_message('test/update/topic', 'payload')
+                    client._base_mqtt_input_func(msg)
+                    
+                    # Проверяем что ошибка залогирована
+                    mock_error.assert_called_with("Error in base MQTT input handler: Handler error")
 
     def test_handle_log_sync(self, env_file, schema_file, log_file, mock_mqtt_client):
         """Тест обработки синхронизации лога"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True, mqtt_client=mock_mqtt_client)
-        client.schema.output_base_topic = {
+        
+        # Патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['output_base_topic'] = {
             BaseOutputTopicType.LOG_PEPEUNIT.value: ['test/log/topic']
         }
         
         sample_log_data = [{'level': 'Info', 'text': 'Test log'}]
         
-        with patch.object(client.logger, 'get_full_log', return_value=sample_log_data):
-            client._handle_log_sync()
-            
-            mock_mqtt_client.publish.assert_called_once_with(
-                'test/log/topic', 
-                json.dumps(sample_log_data)
-            )
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            with patch.object(client.logger, 'get_full_log', return_value=sample_log_data):
+                client._handle_log_sync()
+                
+                mock_mqtt_client.publish.assert_called_once_with(
+                    'test/log/topic', 
+                    json.dumps(sample_log_data)
+                )
 
     def test_subscribe_all_schema_topics(self, env_file, schema_file, log_file, mock_mqtt_client, sample_schema_data):
         """Тест подписки на все топики схемы"""
@@ -390,24 +419,29 @@ class TestPepeunitClientMainCycle:
     def test_base_mqtt_output_handler(self, mock_time, env_file, schema_file, log_file, mock_mqtt_client):
         """Тест базового обработчика вывода MQTT"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True, mqtt_client=mock_mqtt_client)
-        client.schema.output_base_topic = {
+        
+        # Патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['output_base_topic'] = {
             BaseOutputTopicType.STATE_PEPEUNIT.value: ['test/state/topic']
         }
+        
         client.settings.STATE_SEND_INTERVAL = 10
         client._last_state_send = 0
         
         # Время для отправки состояния
         mock_time.time.return_value = 15
         
-        with patch.object(client, 'get_system_state') as mock_get_state:
-            mock_get_state.return_value = {'test': 'state'}
-            
-            client._base_mqtt_output_handler()
-            
-            mock_mqtt_client.publish.assert_called_once_with(
-                'test/state/topic',
-                json.dumps({'test': 'state'})
-            )
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            with patch.object(client, 'get_system_state') as mock_get_state:
+                mock_get_state.return_value = {'test': 'state'}
+                
+                client._base_mqtt_output_handler()
+                
+                mock_mqtt_client.publish.assert_called_once_with(
+                    'test/state/topic', 
+                    json.dumps({'test': 'state'})
+                )
             assert client._last_state_send == 15
 
     @patch('pepeunit_client.client.time')
@@ -489,24 +523,26 @@ class TestPepeunitClientIntegration:
             mqtt_client=mock_mqtt_client, rest_client=mock_rest_client
         )
         
-        # Настройка схемы
-        client.schema.input_base_topic = {
+        # Настройка схемы - патчим _schema_data вместо свойства
+        test_schema_data = client.schema._schema_data.copy()
+        test_schema_data['input_base_topic'] = {
             BaseInputTopicType.ENV_UPDATE_PEPEUNIT.value: ['test/env_update']
         }
         
-        # Установка пользовательского обработчика
-        user_handler = Mock()
-        client.set_mqtt_input_handler(user_handler)
-        
-        # Проверяем что установлен комбинированный обработчик
-        combined_handler = mock_mqtt_client.set_input_handler.call_args[0][0]
-        
-        # Симулируем входящее сообщение
-        msg = mock_mqtt_message('test/env_update', 'env_update_payload')
-        
-        with patch.object(client, '_handle_env_update') as mock_handle_env:
-            combined_handler(msg)
+        with patch.object(client.schema, '_schema_data', test_schema_data):
+            # Установка пользовательского обработчика
+            user_handler = Mock()
+            client.set_mqtt_input_handler(user_handler)
             
-            # Проверяем что вызваны оба обработчика
-            mock_handle_env.assert_called_once()
-            user_handler.assert_called_once_with(client, msg)
+            # Проверяем что установлен комбинированный обработчик
+            combined_handler = mock_mqtt_client.set_input_handler.call_args[0][0]
+            
+            # Симулируем входящее сообщение
+            msg = mock_mqtt_message('test/env_update', 'env_update_payload')
+            
+            with patch.object(client, '_handle_env_update') as mock_handle_env:
+                combined_handler(msg)
+                
+                # Проверяем что вызваны оба обработчика
+                mock_handle_env.assert_called_once()
+                user_handler.assert_called_once_with(client, msg)

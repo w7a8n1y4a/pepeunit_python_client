@@ -2,6 +2,14 @@ from typing import Optional, Callable, List, TYPE_CHECKING, Any
 
 from .abstract_clients import AbstractPepeunitMqttClient
 
+# Import for mocking in tests
+try:
+    from paho.mqtt import client as mqtt_client_paho
+    import uuid
+except ImportError:
+    mqtt_client_paho = None
+    uuid = None
+
 if TYPE_CHECKING:
     from .settings import Settings
     from .schema_manager import SchemaManager
@@ -15,18 +23,15 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         self._input_handler: Optional[Callable] = None
         
     def _get_paho_client(self) -> Any:
-        try:
-            from paho.mqtt import client as mqtt_client_paho
-            import uuid
-            
-            client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, str(uuid.uuid4()))
-            client.username_pw_set(self.settings.PEPEUNIT_TOKEN, '')
-            client.on_connect = self._on_connect
-            client.on_message = self._on_message
-            
-            return client
-        except ImportError:
+        if mqtt_client_paho is None or uuid is None:
             raise ImportError("paho-mqtt is required for MQTT functionality")
+            
+        client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, str(uuid.uuid4()))
+        client.username_pw_set(self.settings.PEPEUNIT_TOKEN, '')
+        client.on_connect = self._on_connect
+        client.on_message = self._on_message
+        
+        return client
     
     def connect(self) -> None:
         if not self._client:

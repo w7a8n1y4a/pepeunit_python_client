@@ -165,7 +165,9 @@ class TestFileManager:
         with open(tar_path, 'rb') as f:
             tar_data = f.read()
         
-        compressed_data = zlib.compress(tar_data, wbits=9)
+        # Создаем сжатие, совместимое с wbits=9 в декомпрессоре
+        compressor = zlib.compressobj(level=9, wbits=9)
+        compressed_data = compressor.compress(tar_data) + compressor.flush()
         archive_path = os.path.join(temp_dir, "compressed.tar.gz")
         
         with open(archive_path, 'wb') as f:
@@ -184,7 +186,9 @@ class TestFileManager:
     def test_extract_pepeunit_archive_cleanup_temp_file(self, mock_remove, mock_unpack, temp_dir):
         """Тест что временный tar файл удаляется после извлечения"""
         # Мокаем данные
-        compressed_data = zlib.compress(b"test tar data", wbits=9)
+        # Создаем сжатие, совместимое с wbits=9 в декомпрессоре
+        compressor = zlib.compressobj(level=9, wbits=9)
+        compressed_data = compressor.compress(b"test tar data") + compressor.flush()
         archive_path = os.path.join(temp_dir, "test.tar.gz")
         
         with open(archive_path, 'wb') as f:
