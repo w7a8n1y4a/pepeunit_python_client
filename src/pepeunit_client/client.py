@@ -20,7 +20,7 @@ from .schema_manager import SchemaManager
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient
 from .pepeunit_mqtt_client import PepeunitMqttClient
 from .pepeunit_rest_client import PepeunitRestClient
-from .enums import BaseInputTopicType, BaseOutputTopicType
+from .enums import BaseInputTopicType, BaseOutputTopicType, RestartMode
 
 
 class PepeunitClient:
@@ -33,7 +33,8 @@ class PepeunitClient:
         enable_rest: bool = False,
         mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
         rest_client: Optional[AbstractPepeunitRestClient] = None,
-        cycle_speed: float = 0.1
+        cycle_speed: float = 0.1,
+        restart_mode: RestartMode = RestartMode.RESTART_EXEC
     ):
         self.env_file_path = env_file_path
         self.schema_file_path = schema_file_path
@@ -41,6 +42,7 @@ class PepeunitClient:
         self.enable_mqtt = enable_mqtt
         self.enable_rest = enable_rest
         self.cycle_speed = cycle_speed
+        self.restart_mode = restart_mode
         
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
@@ -89,16 +91,43 @@ class PepeunitClient:
         unit_directory = os.path.dirname(self.env_file_path) or os.getcwd()
         with tempfile.TemporaryDirectory() as temp_extract_dir:
             FileManager.extract_tar_gz(archive_path, temp_extract_dir)
+            self.logger.info(f"Extracted archive to {temp_extract_dir}")
             
             FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
+            self.logger.info(f"Copied directory contents from {temp_extract_dir} to {unit_directory}")
         
-        self.logger.info('Stop main cycle')
-        self.stop_main_cycle()
-        
-        self.logger.info('I`ll Be Back')
+        if self.restart_mode == RestartMode.RESTART_POPEN:
+            self.stop_main_cycle()
+            
+            self.logger.info('Run new main cycle in other process')
+            subprocess.Popen([sys.executable] + sys.argv)
 
-        subprocess.Popen([sys.executable] + sys.argv)
-        sys.exit(0)
+            self.logger.info('I`ll Be Back - stop this process')
+            sys.exit(0)
+        elif self.restart_mode == RestartMode.RESTART_EXEC:
+            self.stop_main_cycle()
+            
+            self.logger.info('I`ll Be Back - replacing current process')
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        elif self.restart_mode == RestartMode.ENV_SCHEMA_ONLY:
+            self.logger.info('Updating env and schema only, without restart')
+            self._update_env_schema_only()
+        elif self.restart_mode == RestartMode.NO_RESTART:
+            self.logger.info('Archive extracted, no restart or updates performed')
+    
+    def _update_env_schema_only(self) -> None:
+        try:
+            self.settings.load_from_file()
+            self.schema.update_from_file()
+            
+            if self.enable_mqtt and self.mqtt_client:
+                self.subscribe_all_schema_topics()
+            
+            self.logger.info('Environment and schema updated successfully')
+        except Exception as e:
+            self.logger.error(f"Failed to update env and schema: {str(e)}")
+            raise
+
     
     def get_system_state(self) -> Dict[str, Any]:
         if psutil is not None:
@@ -317,6 +346,7 @@ class PepeunitClient:
         self._mqtt_output_handler = output_handler
 
     def stop_main_cycle(self) -> None:
+        self.logger.info('Stop main cycle')
         self._running = False
     
     

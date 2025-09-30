@@ -24,7 +24,7 @@ pip install pepeunit-client[all]
 
 ```python
 import time
-from pepeunit_client.client import PepeunitClient
+from pepeunit_client import PepeunitClient, RestartMode
 from pepeunit_client.enums import SearchTopicType, SearchScope
 
 # Global variable to track last message send time
@@ -87,7 +87,8 @@ def main():
         log_file_path="log.json",
         enable_mqtt=True,
         enable_rest=True,
-        cycle_speed=1.0  # 1 second cycle
+        cycle_speed=1.0,  # 1 second cycle
+        restart_mode=RestartMode.RESTART_EXEC  # Default restart behavior
     )
     
     # Log startup
@@ -112,6 +113,81 @@ if __name__ == "__main__":
 
 ```
 
+### Advanced Usage Examples
+
+#### Different Restart Modes
+
+```python
+from pepeunit_client import PepeunitClient, RestartMode
+
+# Production environment - fast restart (default)
+production_client = PepeunitClient(
+    "env.json", "schema.json", "log.json",
+    enable_mqtt=True, enable_rest=True,
+    restart_mode=RestartMode.RESTART_EXEC
+)
+
+# High-reliability system - subprocess restart
+reliable_client = PepeunitClient(
+    "env.json", "schema.json", "log.json", 
+    enable_mqtt=True, enable_rest=True,
+    restart_mode=RestartMode.RESTART_POPEN
+)
+
+# Configuration-only updates (IoT sensors)
+config_client = PepeunitClient(
+    "env.json", "schema.json", "log.json",
+    enable_mqtt=True, enable_rest=True, 
+    restart_mode=RestartMode.ENV_SCHEMA_ONLY
+)
+
+# Development/testing environment
+dev_client = PepeunitClient(
+    "env.json", "schema.json", "log.json",
+    enable_mqtt=True, enable_rest=True,
+    restart_mode=RestartMode.NO_RESTART
+)
+
+# Trigger updates with different behaviors
+production_client.update_device_program("update.tar.gz")  # Fast restart (default)
+reliable_client.update_device_program("update.tar.gz")    # Subprocess restart  
+config_client.update_device_program("config.tar.gz")      # Config only
+dev_client.update_device_program("test.tar.gz")           # Extract only
+```
+
+#### Conditional Restart Logic
+
+```python
+from pepeunit_client import PepeunitClient, RestartMode
+import os
+
+def create_adaptive_client(env_path: str) -> PepeunitClient:
+    """Create client with restart mode based on environment"""
+    
+    # Check if running in container or systemd
+    if os.path.exists("/.dockerenv"):
+        # Container environment - use default fast restart
+        restart_mode = RestartMode.RESTART_EXEC
+    elif os.environ.get("SYSTEMD_SERVICE"):
+        # Systemd service - use subprocess restart for reliability
+        restart_mode = RestartMode.RESTART_POPEN
+    elif os.environ.get("DEVELOPMENT"):
+        # Development mode - manual control
+        restart_mode = RestartMode.NO_RESTART
+    else:
+        # Default production behavior - fast restart
+        restart_mode = RestartMode.RESTART_EXEC
+    
+    return PepeunitClient(
+        env_path, "schema.json", "log.json",
+        enable_mqtt=True, enable_rest=True,
+        restart_mode=restart_mode
+    )
+
+# Usage
+client = create_adaptive_client("env.json")
+```
+
 ## API Reference
 
 ### PepeunitClient
@@ -129,7 +205,8 @@ PepeunitClient(
     enable_rest: bool = False,
     mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
     rest_client: Optional[AbstractPepeunitRestClient] = None,
-    cycle_speed: float = 0.1
+    cycle_speed: float = 0.1,
+    restart_mode: RestartMode = RestartMode.RESTART_EXEC
 )
 ```
 
@@ -150,6 +227,50 @@ PepeunitClient(
 - **`run_main_cycle(output_handler: Optional[Callable] = None)`**: Start main application loop
 - **`stop_main_cycle()`**: Stop main application loop
 - **`set_output_handler(output_handler: Callable)`**: Set custom output message handler
+
+#### Restart Modes
+
+The `restart_mode` parameter controls how the device behaves when `update_device_program()` is called:
+
+- **`RestartMode.RESTART_POPEN`**: Creates new process via `subprocess.Popen()`, then exits current process
+  - ✅ Full process isolation and reliable restart
+  - ⚠️ Brief gap between old and new process
+  
+- **`RestartMode.RESTART_EXEC`** (default): Replaces current process using `os.execv()`
+  - ✅ Fast restart, preserves process ID
+  - ⚠️ May not release all resources properly
+  
+- **`RestartMode.ENV_SCHEMA_ONLY`**: Updates configuration without restarting
+  - ✅ No downtime, fast configuration updates
+  - ⚠️ Code changes not applied, only env.json and schema.json
+  
+- **`RestartMode.NO_RESTART`**: Only extracts archive, no updates or restarts
+  - ✅ Full control over update process
+  - ⚠️ Manual intervention required
+
+**Usage Examples:**
+
+```python
+from pepeunit_client import PepeunitClient, RestartMode
+
+# Fast restart preserving process ID
+client = PepeunitClient(
+    "env.json", "schema.json", "log.json",
+    restart_mode=RestartMode.RESTART_EXEC
+)
+
+# Configuration-only updates (no downtime)
+client = PepeunitClient(
+    "env.json", "schema.json", "log.json", 
+    restart_mode=RestartMode.ENV_SCHEMA_ONLY
+)
+
+# Manual update control
+client = PepeunitClient(
+    "env.json", "schema.json", "log.json",
+    restart_mode=RestartMode.NO_RESTART
+)
+```
 
 #### MQTT Methods (require `enable_mqtt=True`)
 
@@ -256,6 +377,38 @@ topic_name = client.schema.find_topic_by_unit_node(
     SearchTopicType.FULL_NAME, 
     SearchScope.INPUT
 )
+```
+
+### Available Enums
+
+#### RestartMode
+
+Controls device restart behavior during updates:
+
+```python
+from pepeunit_client import RestartMode
+
+RestartMode.RESTART_POPEN    # Subprocess restart
+RestartMode.RESTART_EXEC     # Default: fast restart with os.execv()
+RestartMode.ENV_SCHEMA_ONLY  # Config-only updates
+RestartMode.NO_RESTART       # Manual control
+```
+
+#### SearchTopicType & SearchScope
+
+For topic discovery in schema:
+
+```python
+from pepeunit_client.enums import SearchTopicType, SearchScope
+
+# Search by full topic name or UUID
+SearchTopicType.FULL_NAME
+SearchTopicType.UNIT_NODE_UUID
+
+# Limit search scope
+SearchScope.ALL      # Search both input and output
+SearchScope.INPUT    # Input topics only  
+SearchScope.OUTPUT   # Output topics only
 ```
 
 ### PepeunitClient.logger

@@ -47,3 +47,10 @@ class BaseInputTopicType(Enum):
 class BaseOutputTopicType(Enum):
     LOG_PEPEUNIT = 'log/pepeunit'
     STATE_PEPEUNIT = 'state/pepeunit'
+
+
+class RestartMode(Enum):
+    RESTART_POPEN = 'restart_popen'
+    RESTART_EXEC = 'restart_exec'
+    ENV_SCHEMA_ONLY = 'env_schema_only'
+    NO_RESTART = 'no_restart'

@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch, MagicMock, PropertyMock
 import pytest
 
 from pepeunit_client.client import PepeunitClient
-from pepeunit_client.enums import BaseInputTopicType, BaseOutputTopicType
+from pepeunit_client.enums import BaseInputTopicType, BaseOutputTopicType, RestartMode
 
 
 def create_jwt_token(uuid: str) -> str:
@@ -81,6 +81,18 @@ class TestPepeunitClientInit:
         
         assert client.cycle_speed == 0.05
 
+    def test_init_with_default_restart_mode(self, env_file, schema_file, log_file):
+        """Тест инициализации с режимом перезапуска по умолчанию"""
+        client = PepeunitClient(env_file, schema_file, log_file)
+        
+        assert client.restart_mode == RestartMode.RESTART_EXEC
+
+    def test_init_with_custom_restart_mode(self, env_file, schema_file, log_file):
+        """Тест инициализации с пользовательским режимом перезапуска"""
+        client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.ENV_SCHEMA_ONLY)
+        
+        assert client.restart_mode == RestartMode.ENV_SCHEMA_ONLY
+
 
 class TestPepeunitClientProperties:
     """Тесты свойств PepeunitClient"""
@@ -130,12 +142,12 @@ class TestPepeunitClientMethods:
             client.set_cycle_speed(-0.1)
 
     @patch('pepeunit_client.client.FileManager')
-    @patch('pepeunit_client.client.subprocess')
+    @patch('pepeunit_client.client.os.execv')
     @patch('pepeunit_client.client.sys')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program(self, mock_tempfile, mock_sys, mock_subprocess, mock_file_manager, 
+    def test_update_device_program(self, mock_tempfile, mock_sys, mock_execv, mock_file_manager, 
                                    env_file, schema_file, log_file):
-        """Тест обновления программы устройства"""
+        """Тест обновления программы устройства с режимом по умолчанию (RESTART_EXEC)"""
         client = PepeunitClient(env_file, schema_file, log_file)
         
         archive_path = '/path/to/update.tar.gz'
@@ -153,8 +165,7 @@ class TestPepeunitClientMethods:
             mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
             mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
             mock_stop.assert_called_once()
-            mock_subprocess.Popen.assert_called_once_with(['/usr/bin/python3', 'script.py', 'arg1'])
-            mock_sys.exit.assert_called_once_with(0)
+            mock_execv.assert_called_once_with('/usr/bin/python3', ['/usr/bin/python3', 'script.py', 'arg1'])
 
     @patch('pepeunit_client.client.time')
     def test_get_system_state_with_psutil(self, mock_time, env_file, schema_file, log_file, mock_psutil):
@@ -308,6 +319,147 @@ class TestPepeunitClientMethods:
         client2 = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=False, enable_rest=True)
         with pytest.raises(RuntimeError, match="Both MQTT and REST clients must be enabled"):
             client2.perform_update()
+
+
+class TestPepeunitClientRestartModes:
+    """Тесты режимов перезапуска PepeunitClient"""
+
+    @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.subprocess')
+    @patch('pepeunit_client.client.sys')
+    @patch('pepeunit_client.client.tempfile')
+    def test_update_device_program_restart_popen(self, mock_tempfile, mock_sys, mock_subprocess, mock_file_manager, 
+                                                 env_file, schema_file, log_file):
+        """Тест обновления программы устройства с режимом RESTART_POPEN"""
+        client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.RESTART_POPEN)
+        
+        archive_path = '/path/to/update.tar.gz'
+        temp_extract_dir = '/tmp/extract'
+        unit_directory = os.path.dirname(env_file)
+        
+        mock_tempfile.TemporaryDirectory.return_value.__enter__.return_value = temp_extract_dir
+        mock_sys.executable = '/usr/bin/python3'
+        mock_sys.argv = ['script.py', 'arg1']
+        
+        with patch.object(client, 'stop_main_cycle') as mock_stop:
+            client.update_device_program(archive_path)
+            
+            # Проверяем вызовы
+            mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
+            mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_stop.assert_called_once()
+            mock_subprocess.Popen.assert_called_once_with(['/usr/bin/python3', 'script.py', 'arg1'])
+            mock_sys.exit.assert_called_once_with(0)
+
+    @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.execv')
+    @patch('pepeunit_client.client.sys')
+    @patch('pepeunit_client.client.tempfile')
+    def test_update_device_program_restart_exec(self, mock_tempfile, mock_sys, mock_execv, mock_file_manager, 
+                                               env_file, schema_file, log_file):
+        """Тест обновления программы устройства с режимом RESTART_EXEC"""
+        client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.RESTART_EXEC)
+        
+        archive_path = '/path/to/update.tar.gz'
+        temp_extract_dir = '/tmp/extract'
+        unit_directory = os.path.dirname(env_file)
+        
+        mock_tempfile.TemporaryDirectory.return_value.__enter__.return_value = temp_extract_dir
+        mock_sys.executable = '/usr/bin/python3'
+        mock_sys.argv = ['script.py', 'arg1']
+        
+        with patch.object(client, 'stop_main_cycle') as mock_stop:
+            client.update_device_program(archive_path)
+            
+            # Проверяем вызовы
+            mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
+            mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_stop.assert_called_once()
+            mock_execv.assert_called_once_with('/usr/bin/python3', ['/usr/bin/python3', 'script.py', 'arg1'])
+
+    @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.tempfile')
+    def test_update_device_program_env_schema_only(self, mock_tempfile, mock_file_manager, 
+                                                  env_file, schema_file, log_file, mock_mqtt_client):
+        """Тест обновления программы устройства с режимом ENV_SCHEMA_ONLY"""
+        client = PepeunitClient(env_file, schema_file, log_file, 
+                               restart_mode=RestartMode.ENV_SCHEMA_ONLY,
+                               enable_mqtt=True, mqtt_client=mock_mqtt_client)
+        
+        archive_path = '/path/to/update.tar.gz'
+        temp_extract_dir = '/tmp/extract'
+        unit_directory = os.path.dirname(env_file)
+        
+        mock_tempfile.TemporaryDirectory.return_value.__enter__.return_value = temp_extract_dir
+        
+        with patch.object(client.settings, 'load_from_file') as mock_load_settings, \
+             patch.object(client.schema, 'update_from_file') as mock_update_schema, \
+             patch.object(client, 'subscribe_all_schema_topics') as mock_subscribe:
+            
+            client.update_device_program(archive_path)
+            
+            # Проверяем вызовы
+            mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
+            mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_load_settings.assert_called_once()
+            mock_update_schema.assert_called_once()
+            mock_subscribe.assert_called_once()
+
+    @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.tempfile')
+    def test_update_device_program_no_restart(self, mock_tempfile, mock_file_manager, 
+                                             env_file, schema_file, log_file):
+        """Тест обновления программы устройства с режимом NO_RESTART"""
+        client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.NO_RESTART)
+        
+        archive_path = '/path/to/update.tar.gz'
+        temp_extract_dir = '/tmp/extract'
+        unit_directory = os.path.dirname(env_file)
+        
+        mock_tempfile.TemporaryDirectory.return_value.__enter__.return_value = temp_extract_dir
+        
+        client.update_device_program(archive_path)
+        
+        # Проверяем что только извлечение и копирование выполнены
+        mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
+        mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+        
+        # Проверяем что никаких других действий не было
+
+    def test_update_env_schema_only_without_mqtt(self, env_file, schema_file, log_file):
+        """Тест метода _update_env_schema_only без MQTT"""
+        client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=False)
+        
+        with patch.object(client.settings, 'load_from_file') as mock_load_settings, \
+             patch.object(client.schema, 'update_from_file') as mock_update_schema:
+            
+            client._update_env_schema_only()
+            
+            mock_load_settings.assert_called_once()
+            mock_update_schema.assert_called_once()
+
+    def test_update_env_schema_only_with_mqtt(self, env_file, schema_file, log_file, mock_mqtt_client):
+        """Тест метода _update_env_schema_only с MQTT"""
+        client = PepeunitClient(env_file, schema_file, log_file, 
+                               enable_mqtt=True, mqtt_client=mock_mqtt_client)
+        
+        with patch.object(client.settings, 'load_from_file') as mock_load_settings, \
+             patch.object(client.schema, 'update_from_file') as mock_update_schema, \
+             patch.object(client, 'subscribe_all_schema_topics') as mock_subscribe:
+            
+            client._update_env_schema_only()
+            
+            mock_load_settings.assert_called_once()
+            mock_update_schema.assert_called_once()
+            mock_subscribe.assert_called_once()
+
+    def test_update_env_schema_only_exception_handling(self, env_file, schema_file, log_file):
+        """Тест обработки исключений в методе _update_env_schema_only"""
+        client = PepeunitClient(env_file, schema_file, log_file)
+        
+        with patch.object(client.settings, 'load_from_file', side_effect=Exception("Settings error")):
+            with pytest.raises(Exception, match="Settings error"):
+                client._update_env_schema_only()
 
 
 class TestPepeunitClientMQTTHandlers:

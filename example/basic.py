@@ -14,7 +14,7 @@ It shows how to:
 """
 
 import time
-from pepeunit_client.client import PepeunitClient
+from pepeunit_client import PepeunitClient, RestartMode
 from pepeunit_client.enums import SearchTopicType, SearchScope
 
 # Global variable to track last message send time
@@ -77,7 +77,8 @@ def main():
         log_file_path="log.json",
         enable_mqtt=True,
         enable_rest=True,
-        cycle_speed=1.0  # 1 second cycle
+        cycle_speed=1.0,  # 1 second cycle
+        restart_mode=RestartMode.RESTART_EXEC
     )
     
     # Log startup

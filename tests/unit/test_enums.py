@@ -4,7 +4,7 @@
 import pytest
 from pepeunit_client.enums import (
     LogLevel, SearchTopicType, SearchScope, 
-    DestinationTopicType, BaseInputTopicType, BaseOutputTopicType
+    DestinationTopicType, BaseInputTopicType, BaseOutputTopicType, RestartMode
 )
 
 
@@ -120,6 +120,26 @@ class TestBaseOutputTopicType:
             assert 'pepeunit' in topic_type.value
 
 
+class TestRestartMode:
+    """Тесты для перечисления RestartMode"""
+    
+    def test_restart_mode_values(self):
+        """Тест корректности значений режимов перезапуска"""
+        assert RestartMode.RESTART_POPEN.value == 'restart_popen'
+        assert RestartMode.RESTART_EXEC.value == 'restart_exec'
+        assert RestartMode.ENV_SCHEMA_ONLY.value == 'env_schema_only'
+        assert RestartMode.NO_RESTART.value == 'no_restart'
+    
+    def test_restart_mode_count(self):
+        """Тест количества режимов перезапуска"""
+        assert len(RestartMode) == 4
+    
+    def test_restart_mode_uniqueness(self):
+        """Тест уникальности значений режимов перезапуска"""
+        values = [mode.value for mode in RestartMode]
+        assert len(values) == len(set(values))
+
+
 class TestEnumIntegration:
     """Интеграционные тесты перечислений"""
     
@@ -127,7 +147,7 @@ class TestEnumIntegration:
         """Тест уникальности значений в каждом перечислении"""
         enums_to_test = [
             LogLevel, SearchTopicType, SearchScope, 
-            DestinationTopicType, BaseInputTopicType, BaseOutputTopicType
+            DestinationTopicType, BaseInputTopicType, BaseOutputTopicType, RestartMode
         ]
         
         for enum_class in enums_to_test:
@@ -143,7 +163,8 @@ class TestEnumIntegration:
             (SearchScope.ALL, "SearchScope.ALL"),
             (DestinationTopicType.INPUT_BASE_TOPIC, "DestinationTopicType.INPUT_BASE_TOPIC"),
             (BaseInputTopicType.UPDATE_PEPEUNIT, "BaseInputTopicType.UPDATE_PEPEUNIT"),
-            (BaseOutputTopicType.LOG_PEPEUNIT, "BaseOutputTopicType.LOG_PEPEUNIT")
+            (BaseOutputTopicType.LOG_PEPEUNIT, "BaseOutputTopicType.LOG_PEPEUNIT"),
+            (RestartMode.RESTART_POPEN, "RestartMode.RESTART_POPEN")
         ]
         
         for enum_item, expected_repr in test_cases:
