@@ -47,7 +47,14 @@ class FileManager:
             with open(tar_filepath, 'wb') as tar_file:
                 tar_file.write(tar_data)
             try:
-                shutil.unpack_archive(tar_filepath, extract_path, 'tar')
+                # Use tarfile directly with filter for security (Python 3.12+)
+                with tarfile.open(tar_filepath, 'r') as tar:
+                    # Check if filter parameter is supported
+                    try:
+                        tar.extractall(extract_path, filter='data')
+                    except TypeError:
+                        # Fallback for older Python versions
+                        tar.extractall(extract_path)
             finally:
                 if os.path.exists(tar_filepath):
                     os.remove(tar_filepath)

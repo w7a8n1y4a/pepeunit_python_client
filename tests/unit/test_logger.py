@@ -147,12 +147,12 @@ class TestLogger:
     @patch('pepeunit_client.logger.datetime')
     def test_get_current_datetime(self, mock_datetime, mock_logger):
         """Тест получения текущего времени"""
-        mock_datetime.datetime.utcnow.return_value.isoformat.return_value = '2023-01-01T12:00:00.000000'
+        mock_datetime.datetime.now.return_value.isoformat.return_value = '2023-01-01T12:00:00.000000'
         
         result = mock_logger._get_current_datetime()
         
         assert result == '2023-01-01T12:00:00.000000'
-        mock_datetime.datetime.utcnow.assert_called_once()
+        mock_datetime.datetime.now.assert_called_once_with(mock_datetime.timezone.utc)
 
     @patch.object(Logger, '_write_to_file')
     @patch.object(Logger, '_send_mqtt')
@@ -265,7 +265,8 @@ class TestLogger:
         
         logger = Logger(log_file, mock_mqtt_client, mock_schema_manager, mock_settings)
         
-        with patch.object(mock_schema_manager, '_schema_data', test_schema_data):
+        with patch.object(mock_schema_manager, '_schema_data', test_schema_data), \
+             patch.object(logger, '_get_current_datetime', return_value='2023-01-01T12:00:00.000000'):
             # Логируем сообщения разных уровней
             logger.debug('This should be filtered out')  # Не должно логироваться
             logger.info('This should be logged')         # Должно логироваться
@@ -292,7 +293,8 @@ class TestLogger:
         log_file = os.path.join(temp_dir, 'structure_test.json')
         logger = Logger(log_file)
         
-        logger.info('Test message for structure')
+        with patch.object(logger, '_get_current_datetime', return_value='2023-01-01T12:00:00.000000'):
+            logger.info('Test message for structure')
         
         with open(log_file, 'r') as f:
             log_data = json.load(f)
@@ -308,7 +310,7 @@ class TestLogger:
         # Проверяем значения
         assert log_entry['level'] == 'Info'
         assert log_entry['text'] == 'Test message for structure'
-        assert log_entry['create_datetime'] == '2023-01-01T00:00:00.000000'
+        assert log_entry['create_datetime'] == '2023-01-01T12:00:00.000000'
 
     def test_concurrent_logging_safety(self, temp_dir, mock_settings):
         """Тест безопасности при одновременном логировании"""

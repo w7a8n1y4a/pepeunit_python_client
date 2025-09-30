@@ -63,7 +63,7 @@ class Logger:
             pass
     
     def _get_current_datetime(self) -> str:
-        return datetime.datetime.utcnow().isoformat()
+        return datetime.datetime.now(datetime.timezone.utc).isoformat()
     
     def debug(self, message: str) -> None:
         self._log(LogLevel.DEBUG, message)

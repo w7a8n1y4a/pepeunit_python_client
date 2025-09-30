@@ -7,7 +7,7 @@ import tarfile
 import tempfile
 import zlib
 from pathlib import Path
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch, mock_open, MagicMock, Mock
 
 import pytest
 
@@ -183,7 +183,8 @@ class TestFileManager:
 
     @patch('shutil.unpack_archive')
     @patch('os.remove')
-    def test_extract_pepeunit_archive_cleanup_temp_file(self, mock_remove, mock_unpack, temp_dir):
+    @patch('pepeunit_client.file_manager.tarfile.open')
+    def test_extract_pepeunit_archive_cleanup_temp_file(self, mock_tarfile_open, mock_remove, mock_unpack, temp_dir):
         """Тест что временный tar файл удаляется после извлечения"""
         # Мокаем данные
         # Создаем сжатие, совместимое с wbits=9 в декомпрессоре
@@ -195,6 +196,10 @@ class TestFileManager:
             f.write(compressed_data)
         
         extract_path = os.path.join(temp_dir, "extract")
+        
+        # Мокаем tarfile.open чтобы избежать ошибки чтения tar файла
+        mock_tar = Mock()
+        mock_tarfile_open.return_value.__enter__.return_value = mock_tar
         
         FileManager.extract_pepeunit_archive(archive_path, extract_path)
         
