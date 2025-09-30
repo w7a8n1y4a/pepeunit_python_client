@@ -26,19 +26,19 @@ def temp_dir():
 def sample_env_data() -> Dict[str, Any]:
     """Тестовые данные для env.json"""
     return {
-        "PEPEUNIT_URL": "test.pepeunit.com",
-        "PEPEUNIT_APP_PREFIX": "/app",
-        "PEPEUNIT_API_ACTUAL_PREFIX": "/api/v1",
+        "DELAY_PUB_MSG": 1,
+        "PEPEUNIT_URL": "devunit.pepeunit.com",
         "HTTP_TYPE": "https",
-        "MQTT_URL": "mqtt.test.com",
-        "MQTT_PORT": 1883,
-        "PEPEUNIT_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1dWlkIjoidGVzdC11dWlkLTEyMzQifQ.test_signature",
-        "SYNC_ENCRYPT_KEY": "test_encrypt_key",
-        "SECRET_KEY": "test_secret_key",
-        "COMMIT_VERSION": "v1.0.0",
+        "PEPEUNIT_APP_PREFIX": "/pepeunit",
+        "PEPEUNIT_API_ACTUAL_PREFIX": "/api/v1",
+        "MQTT_URL": "devemqx.pepemoss.com",
+        "MQTT_PORT": 1884,
+        "PEPEUNIT_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1dWlkIjoiMzc0ZDQxZTQtMTUzYi00ZDNlLWFiYTAtYTA4ODM3NGVjZDJkIiwidHlwZSI6IlVuaXQifQ.rSc4H18Jfuk_-gh4NCFWKTAyj5ckHz2ZmlwXoGjtr2I",
+        "SYNC_ENCRYPT_KEY": "PoTHLHYFIwke9W8aM3TefA==",
+        "SECRET_KEY": "ZxtLN+kN5Sif+lr5rpFJMQ==",
         "PING_INTERVAL": 30,
-        "STATE_SEND_INTERVAL": 300,
-        "MINIMAL_LOG_LEVEL": "Debug"
+        "STATE_SEND_INTERVAL": 2,
+        "COMMIT_VERSION": "d4218da85305798c783a51dd25944bfa0b40903b"
     }
 
 
@@ -47,20 +47,36 @@ def sample_schema_data() -> Dict[str, Any]:
     """Тестовые данные для schema.json"""
     return {
         "input_base_topic": {
-            "update/pepeunit": ["test/unit/uuid/update/pepeunit"],
-            "env_update/pepeunit": ["test/unit/uuid/env_update/pepeunit"],
-            "schema_update/pepeunit": ["test/unit/uuid/schema_update/pepeunit"],
-            "log_sync/pepeunit": ["test/unit/uuid/log_sync/pepeunit"]
+            "update/pepeunit": [
+                "devunit.pepeunit.com/input_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/update/pepeunit"
+            ],
+            "env_update/pepeunit": [
+                "devunit.pepeunit.com/input_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/env_update/pepeunit"
+            ],
+            "schema_update/pepeunit": [
+                "devunit.pepeunit.com/input_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/schema_update/pepeunit"
+            ],
+            "log_sync/pepeunit": [
+                "devunit.pepeunit.com/input_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/log_sync/pepeunit"
+            ]
         },
         "output_base_topic": {
-            "log/pepeunit": ["test/unit/uuid/log/pepeunit"],
-            "state/pepeunit": ["test/unit/uuid/state/pepeunit"]
+            "state/pepeunit": [
+                "devunit.pepeunit.com/output_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/state/pepeunit"
+            ],
+            "log/pepeunit": [
+                "devunit.pepeunit.com/output_base_topic/374d41e4-153b-4d3e-aba0-a088374ecd2d/log/pepeunit"
+            ]
         },
         "input_topic": {
-            "test_input": ["test/unit/uuid/input/test"]
+            "input/pepeunit": [
+                "devunit.pepeunit.com/751ea411-8068-42df-9c65-987f122f670e/pepeunit"
+            ]
         },
         "output_topic": {
-            "test_output": ["test/unit/uuid/output/test"]
+            "output/pepeunit": [
+                "devunit.pepeunit.com/8e912700-5fba-40fc-9f45-be0ccb6a63fd/pepeunit"
+            ]
         }
     }
 

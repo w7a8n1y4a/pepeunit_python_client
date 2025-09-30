@@ -87,14 +87,13 @@ class TestPepeunitClientProperties:
 
     def test_unit_uuid_valid_token(self, env_file, schema_file, log_file, mock_jwt_token):
         """Тест получения UUID из валидного токена"""
-        with patch('pepeunit_client.settings.Settings') as MockSettings:
-            mock_settings = Mock()
-            mock_settings.PEPEUNIT_TOKEN = mock_jwt_token
-            MockSettings.return_value = mock_settings
-            
-            client = PepeunitClient(env_file, schema_file, log_file)
-            
-            assert client.unit_uuid == "test-uuid-1234"
+        client = PepeunitClient(env_file, schema_file, log_file)
+        
+        # Подменяем токен в уже созданном клиенте
+        client.settings.PEPEUNIT_TOKEN = mock_jwt_token
+        
+        # Теперь проверяем, что UUID корректно извлекается из mock токена
+        assert client.unit_uuid == "test-uuid-1234"
 
     def test_unit_uuid_invalid_token_format(self, env_file, schema_file, log_file):
         """Тест исключения при невалидном формате токена"""
@@ -410,9 +409,9 @@ class TestPepeunitClientMQTTHandlers:
         client = PepeunitClient(env_file, schema_file, log_file, enable_mqtt=True, mqtt_client=mock_mqtt_client)
         client.schema._schema_data = sample_schema_data
         
-        client.publish_to_topics('test_output', 'test message')
+        client.publish_to_topics('output/pepeunit', 'test message')
         
-        expected_topics = sample_schema_data['output_topic']['test_output']
+        expected_topics = sample_schema_data['output_topic']['output/pepeunit']
         for topic in expected_topics:
             mock_mqtt_client.publish.assert_any_call(topic, 'test message')
 
