@@ -35,13 +35,6 @@ class Settings:
         for key, value in env_data.items():
             setattr(self, key, value)
     
-    def reload(self) -> None:
-        self.load_from_file()
-    
-    def update_from_file(self) -> None:
-        """Метод для обновления настроек из файла (алиас для reload)."""
-        self.reload()
-    
     def get_env_values(self) -> Dict[str, Any]:
         if not self.env_file_path or not FileManager.file_exists(self.env_file_path):
             return {}

@@ -49,7 +49,7 @@ class PepeunitClient:
         self._mqtt_output_handler: Optional[Callable] = None
 
         self._running = False
-        self._previous_cycle_time = 0
+        self._last_state_send = 0
         
     def _get_default_mqtt_client(self) -> Optional[AbstractPepeunitMqttClient]:
         return PepeunitMqttClient(self.settings, self.schema, self.logger)
@@ -76,25 +76,24 @@ class PepeunitClient:
             raise ValueError("Cycle speed must be greater than 0")
         self.cycle_speed = speed
     
-    def set_previous_cycle_time(self, timestamp: float) -> None:
-        self._previous_cycle_time = timestamp
-    
-    @property
-    def previous_cycle_time(self) -> float:
-        return self._previous_cycle_time
-    
     def update_device_program(self, archive_path: str) -> None:
         import tempfile
+        import sys
+        import subprocess
         
-        unit_directory = os.path.dirname(self.env_file_path)
-        
+        unit_directory = os.path.dirname(self.env_file_path) or os.getcwd()
         with tempfile.TemporaryDirectory() as temp_extract_dir:
             FileManager.extract_tar_gz(archive_path, temp_extract_dir)
             
             FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
-            
-        self.settings.update_from_file()
-        self.logger.info(f"Device program updated from {archive_path}")
+        
+        self.logger.info('Stop main cycle')
+        self.stop_main_cycle()
+        
+        self.logger.info('I`ll Be Back')
+
+        subprocess.Popen([sys.executable] + sys.argv)
+        sys.exit(0)
     
     def get_system_state(self) -> Dict[str, Any]:
         try:
@@ -164,7 +163,7 @@ class PepeunitClient:
             raise RuntimeError("REST client is not enabled or available")
         
         self.rest_client.download_env(self.unit_uuid, file_path)
-        self.settings.update_from_file()
+        self.settings.load_from_file()
         self.logger.info(f"Environment file downloaded and updated from {file_path}")
     
     def download_schema(self, file_path: str) -> None:
@@ -205,7 +204,7 @@ class PepeunitClient:
         except Exception as e:
             self.logger.error(f"Update failed: {str(e)}")
             raise
-    
+        
     def _handle_update(self, payload: str) -> None:
         self.logger.info("Update request received via MQTT")
         if self.enable_rest and self.rest_client:
@@ -281,11 +280,13 @@ class PepeunitClient:
         current_time = time.time()
         
         if BaseOutputTopicType.STATE_PEPEUNIT.value in self.schema.output_base_topic:
-            if current_time - self.previous_cycle_time >= self.settings.STATE_SEND_INTERVAL:
+            if current_time - self._last_state_send >= self.settings.STATE_SEND_INTERVAL:
                 topic = self.schema.output_base_topic[BaseOutputTopicType.STATE_PEPEUNIT.value][0]
                 state_data = self.get_system_state()
                 if self.mqtt_client:
                     self.mqtt_client.publish(topic, json.dumps(state_data))
+
+                    self._last_state_send = current_time
     
     def run_main_cycle(self, output_handler: Optional[Callable] = None) -> None:
         self._running = True
@@ -294,14 +295,10 @@ class PepeunitClient:
         
         try:
             while self._running:
-                cycle_start_time = time.time()
-                
                 self._base_mqtt_output_handler()
                 
                 if self._mqtt_output_handler:
                     self._mqtt_output_handler(self)
-                
-                self.set_previous_cycle_time(cycle_start_time)
                 
                 time.sleep(self.cycle_speed)
                 

@@ -17,6 +17,9 @@ import time
 from pepeunit_client.client import PepeunitClient
 from pepeunit_client.enums import SearchTopicType, SearchScope
 
+# Global variable to track last message send time
+last_output_send_time = 0
+
 
 def handle_input_messages(client: PepeunitClient, msg: bytes):
     try:
@@ -36,7 +39,7 @@ def handle_input_messages(client: PepeunitClient, msg: bytes):
 
                     # example logic
                     if value == 0:
-                        client.logger.info(f"PepeUnit is offline {value}")
+                        client.logger.info(f"Get message from input/pepeunit topics {value}")
                     else:
                         # send value to all topic by name
                         client.publish_to_topics("output/pepeunit", str(value))
@@ -49,15 +52,21 @@ def handle_input_messages(client: PepeunitClient, msg: bytes):
 
 
 def handle_output_messages(client: PepeunitClient):
+    global last_output_send_time
     current_time = time.time()
     
-    # Send data every DELAY_PUB_MSG seconds, DELAY_PUB_MSG this is a user variable
-    if current_time - client.previous_cycle_time >= client.settings.DELAY_PUB_MSG:
+    # Send data every MESSAGE_SEND_INTERVAL seconds, similar to _base_mqtt_output_handler
+    if current_time - last_output_send_time >= client.settings.DELAY_PUB_MSG:
         # message example
         message = '12.45'
         
+        client.logger.info(f"Send message to output/pepeunit topics: {message}")
+
         # Try to publish to sensor output topics
         client.publish_to_topics("output/pepeunit", message)
+        
+        # Update the last message send time
+        last_output_send_time = current_time
 
 
 def main():
@@ -73,7 +82,7 @@ def main():
     
     # Log startup
     client.logger.debug("PepeUnit client created")
-    client.logger.debug("Device UUID: {client.unit_uuid}")
+    client.logger.debug(f"Device UUID: {client.unit_uuid}")
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
