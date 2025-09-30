@@ -48,7 +48,7 @@ class TestPepeunitMqttClient:
 
     def test_get_paho_client_import_error(self, mock_settings, mock_schema_manager, mock_logger):
         """Тест исключения при отсутствии paho-mqtt"""
-        with patch('pepeunit_client.pepeunit_mqtt_client.mqtt_client_paho', side_effect=ImportError()):
+        with patch('pepeunit_client.pepeunit_mqtt_client.mqtt_client_paho', None):
             client = PepeunitMqttClient(mock_settings, mock_schema_manager, mock_logger)
             
             with pytest.raises(ImportError, match="paho-mqtt is required for MQTT functionality"):

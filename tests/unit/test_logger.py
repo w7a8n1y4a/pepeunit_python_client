@@ -161,6 +161,10 @@ class TestLogger:
         """Тест метода _log когда нужно логировать"""
         mock_should_log.return_value = True
         
+        # Устанавливаем mock объекты для срабатывания _send_mqtt
+        mock_logger.mqtt_client = Mock()
+        mock_logger.schema_manager = Mock()
+        
         mock_logger._log(LogLevel.INFO, 'Test message')
         
         mock_should_log.assert_called_once_with(LogLevel.INFO)

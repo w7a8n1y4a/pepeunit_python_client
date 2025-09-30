@@ -6,7 +6,7 @@ import os
 import tempfile
 import time
 import base64
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, PropertyMock
 
 import pytest
 
@@ -182,7 +182,7 @@ class TestPepeunitClientMethods:
         """Тест получения системного состояния без psutil"""
         mock_time.time.return_value = 1672531200.456
         
-        with patch('pepeunit_client.client.psutil', side_effect=ImportError()):
+        with patch('pepeunit_client.client.psutil', None):
             client = PepeunitClient(env_file, schema_file, log_file)
             client.settings.COMMIT_VERSION = 'v1.0.0'
             
@@ -243,7 +243,7 @@ class TestPepeunitClientMethods:
         """Тест успешного скачивания схемы"""
         client = PepeunitClient(env_file, schema_file, log_file, enable_rest=True, rest_client=mock_rest_client)
         
-        with patch.object(client, 'unit_uuid', 'test-uuid'), \
+        with patch.object(type(client), 'unit_uuid', new_callable=PropertyMock, return_value='test-uuid'), \
              patch.object(client.schema, 'update_from_file') as mock_update:
             
             client.download_schema('/path/to/schema.json')
@@ -257,7 +257,7 @@ class TestPepeunitClientMethods:
         
         test_state = {'sensor1': 25.5, 'active': True}
         
-        with patch.object(client, 'unit_uuid', 'test-uuid'):
+        with patch.object(type(client), 'unit_uuid', new_callable=PropertyMock, return_value='test-uuid'):
             client.set_state_storage(test_state)
             
             mock_rest_client.set_state_storage.assert_called_once_with('test-uuid', test_state)
@@ -269,7 +269,7 @@ class TestPepeunitClientMethods:
         expected_state = {'temperature': 22.1}
         mock_rest_client.get_state_storage.return_value = expected_state
         
-        with patch.object(client, 'unit_uuid', 'test-uuid'):
+        with patch.object(type(client), 'unit_uuid', new_callable=PropertyMock, return_value='test-uuid'):
             result = client.get_state_storage()
             
             assert result == expected_state
@@ -284,13 +284,16 @@ class TestPepeunitClientMethods:
         mock_tempdir = '/tmp'
         mock_tempfile.gettempdir.return_value = mock_tempdir
         
-        with patch.object(client, 'unit_uuid', 'update-uuid'), \
+        # Настраиваем mock для os.path.join
+        expected_archive_path = '/tmp/update_update-uuid.tar.gz'
+        mock_os.path.join.return_value = expected_archive_path
+        
+        with patch.object(type(client), 'unit_uuid', new_callable=PropertyMock, return_value='update-uuid'), \
              patch.object(client, 'download_update') as mock_download, \
              patch.object(client, 'update_device_program') as mock_update_program:
             
             client.perform_update()
             
-            expected_archive_path = '/tmp/update_update-uuid.tar.gz'
             mock_download.assert_called_once_with(expected_archive_path)
             mock_update_program.assert_called_once_with(expected_archive_path)
             mock_os.remove.assert_called_once_with(expected_archive_path)
@@ -380,10 +383,12 @@ class TestPepeunitClientMQTTHandlers:
             with patch.object(client.logger, 'get_full_log', return_value=sample_log_data):
                 client._handle_log_sync()
                 
-                mock_mqtt_client.publish.assert_called_once_with(
-                    'test/log/topic', 
-                    json.dumps(sample_log_data)
-                )
+                # Метод делает две публикации: сначала данные лога, потом сообщение о завершении
+                assert mock_mqtt_client.publish.call_count == 2
+                
+                # Проверяем первый вызов - публикация данных лога
+                first_call = mock_mqtt_client.publish.call_args_list[0]
+                assert first_call.args == ('test/log/topic', json.dumps(sample_log_data))
 
     def test_subscribe_all_schema_topics(self, env_file, schema_file, log_file, mock_mqtt_client, sample_schema_data):
         """Тест подписки на все топики схемы"""
@@ -509,7 +514,11 @@ class TestPepeunitClientIntegration:
         # Проверяем что все компоненты инициализированы
         assert client.settings.PEPEUNIT_URL == sample_env_data['PEPEUNIT_URL']
         assert client.schema.input_base_topic == sample_schema_data['input_base_topic']
-        assert os.path.exists(log_file)  # Лог файл должен быть создан
+        
+        # Лог файл создается только при первом логировании
+        client.logger.info("Test log message")
+        assert os.path.exists(log_file)
+        
         assert client.mqtt_client is not None
         assert client.rest_client is not None
 

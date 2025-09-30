@@ -2,6 +2,7 @@
 Тесты для класса PepeunitRestClient
 """
 import json
+import os
 from unittest.mock import Mock, patch, mock_open
 
 import pytest
@@ -39,7 +40,7 @@ class TestPepeunitRestClient:
 
     def test_get_httpx_client_import_error(self, mock_settings):
         """Тест исключения при отсутствии httpx"""
-        with patch('pepeunit_client.pepeunit_rest_client.httpx', side_effect=ImportError()):
+        with patch('pepeunit_client.pepeunit_rest_client.httpx', None):
             with pytest.raises(ImportError, match="httpx is required for REST functionality"):
                 PepeunitRestClient(mock_settings)
 
@@ -367,7 +368,7 @@ class TestPepeunitRestClient:
             with pytest.raises(Exception, match="HTTP Error"):
                 client.get_state_storage(test_uuid)
 
-    def test_url_construction_with_parameters(self, mock_settings, mock_httpx):
+    def test_url_construction_with_parameters(self, mock_settings, mock_httpx, temp_dir):
         """Тест правильного построения URL с параметрами"""
         with patch.object(PepeunitRestClient, '_get_base_url', return_value='https://param.test.com/api'):
             client = PepeunitRestClient(mock_settings)
@@ -377,7 +378,9 @@ class TestPepeunitRestClient:
             mock_response.content = b'test'
             mock_httpx.get.return_value = mock_response
             
-            client.download_update('param-uuid', '/path')
+            # Используем временный файл
+            temp_file = os.path.join(temp_dir, 'test_update.tar.gz')
+            client.download_update('param-uuid', temp_file)
             
             # Проверяем что URL построен правильно с параметрами
             call_args = mock_httpx.get.call_args
