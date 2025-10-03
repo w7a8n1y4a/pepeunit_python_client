@@ -142,10 +142,11 @@ class TestPepeunitClientMethods:
             client.set_cycle_speed(-0.1)
 
     @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.remove')
     @patch('pepeunit_client.client.os.execv')
     @patch('pepeunit_client.client.sys')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program(self, mock_tempfile, mock_sys, mock_execv, mock_file_manager, 
+    def test_update_device_program(self, mock_tempfile, mock_sys, mock_execv, mock_remove, mock_file_manager, 
                                    env_file, schema_file, log_file):
         """Тест обновления программы устройства с режимом по умолчанию (RESTART_EXEC)"""
         client = PepeunitClient(env_file, schema_file, log_file)
@@ -164,6 +165,7 @@ class TestPepeunitClientMethods:
             # Проверяем вызовы
             mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
             mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_remove.assert_called_once_with(archive_path)
             mock_stop.assert_called_once()
             mock_execv.assert_called_once_with('/usr/bin/python3', ['/usr/bin/python3', 'script.py', 'arg1'])
 
@@ -215,7 +217,7 @@ class TestPepeunitClientMethods:
         test_handler = Mock()
         client.set_mqtt_input_handler(test_handler)
         
-        assert client._mqtt_input_handler == test_handler
+        assert client.mqtt_input_handler == test_handler
         mock_mqtt_client.set_input_handler.assert_called_once()
 
     def test_download_update_success(self, env_file, schema_file, log_file, mock_rest_client):
@@ -306,7 +308,6 @@ class TestPepeunitClientMethods:
             
             mock_download.assert_called_once_with(expected_archive_path)
             mock_update_program.assert_called_once_with(expected_archive_path)
-            mock_os.remove.assert_called_once_with(expected_archive_path)
 
     def test_perform_update_requires_both_clients(self, env_file, schema_file, log_file):
         """Тест что обновление требует оба клиента"""
@@ -325,10 +326,11 @@ class TestPepeunitClientRestartModes:
     """Тесты режимов перезапуска PepeunitClient"""
 
     @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.remove')
     @patch('pepeunit_client.client.subprocess')
     @patch('pepeunit_client.client.sys')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program_restart_popen(self, mock_tempfile, mock_sys, mock_subprocess, mock_file_manager, 
+    def test_update_device_program_restart_popen(self, mock_tempfile, mock_sys, mock_subprocess, mock_remove, mock_file_manager, 
                                                  env_file, schema_file, log_file):
         """Тест обновления программы устройства с режимом RESTART_POPEN"""
         client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.RESTART_POPEN)
@@ -347,15 +349,17 @@ class TestPepeunitClientRestartModes:
             # Проверяем вызовы
             mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
             mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_remove.assert_called_once_with(archive_path)
             mock_stop.assert_called_once()
             mock_subprocess.Popen.assert_called_once_with(['/usr/bin/python3', 'script.py', 'arg1'])
             mock_sys.exit.assert_called_once_with(0)
 
     @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.remove')
     @patch('pepeunit_client.client.os.execv')
     @patch('pepeunit_client.client.sys')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program_restart_exec(self, mock_tempfile, mock_sys, mock_execv, mock_file_manager, 
+    def test_update_device_program_restart_exec(self, mock_tempfile, mock_sys, mock_execv, mock_remove, mock_file_manager, 
                                                env_file, schema_file, log_file):
         """Тест обновления программы устройства с режимом RESTART_EXEC"""
         client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.RESTART_EXEC)
@@ -374,12 +378,14 @@ class TestPepeunitClientRestartModes:
             # Проверяем вызовы
             mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
             mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_remove.assert_called_once_with(archive_path)
             mock_stop.assert_called_once()
             mock_execv.assert_called_once_with('/usr/bin/python3', ['/usr/bin/python3', 'script.py', 'arg1'])
 
     @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.remove')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program_env_schema_only(self, mock_tempfile, mock_file_manager, 
+    def test_update_device_program_env_schema_only(self, mock_tempfile, mock_remove, mock_file_manager, 
                                                   env_file, schema_file, log_file, mock_mqtt_client):
         """Тест обновления программы устройства с режимом ENV_SCHEMA_ONLY"""
         client = PepeunitClient(env_file, schema_file, log_file, 
@@ -401,13 +407,15 @@ class TestPepeunitClientRestartModes:
             # Проверяем вызовы
             mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
             mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+            mock_remove.assert_called_once_with(archive_path)
             mock_load_settings.assert_called_once()
             mock_update_schema.assert_called_once()
             mock_subscribe.assert_called_once()
 
     @patch('pepeunit_client.client.FileManager')
+    @patch('pepeunit_client.client.os.remove')
     @patch('pepeunit_client.client.tempfile')
-    def test_update_device_program_no_restart(self, mock_tempfile, mock_file_manager, 
+    def test_update_device_program_no_restart(self, mock_tempfile, mock_remove, mock_file_manager, 
                                              env_file, schema_file, log_file):
         """Тест обновления программы устройства с режимом NO_RESTART"""
         client = PepeunitClient(env_file, schema_file, log_file, restart_mode=RestartMode.NO_RESTART)
@@ -420,9 +428,10 @@ class TestPepeunitClientRestartModes:
         
         client.update_device_program(archive_path)
         
-        # Проверяем что только извлечение и копирование выполнены
+        # Проверяем что только извлечение, копирование и удаление выполнены
         mock_file_manager.extract_tar_gz.assert_called_once_with(archive_path, temp_extract_dir)
         mock_file_manager.copy_directory_contents.assert_called_once_with(temp_extract_dir, unit_directory)
+        mock_remove.assert_called_once_with(archive_path)
         
         # Проверяем что никаких других действий не было
 
@@ -477,10 +486,10 @@ class TestPepeunitClientMQTTHandlers:
         
         with patch.object(client.schema, '_schema_data', test_schema_data):
             with patch.object(client, '_handle_update') as mock_handle:
-                msg = mock_mqtt_message('test/update/topic', 'update payload')
+                msg = mock_mqtt_message('test/update/topic', '{"action": "update"}')
                 client._base_mqtt_input_func(msg)
                 
-                mock_handle.assert_called_once_with('update payload')
+                mock_handle.assert_called_once_with({"action": "update"})
 
     def test_base_mqtt_input_func_env_update(self, env_file, schema_file, log_file, mock_mqtt_message):
         """Тест обработки сообщения об обновлении env"""
@@ -494,7 +503,7 @@ class TestPepeunitClientMQTTHandlers:
         
         with patch.object(client.schema, '_schema_data', test_schema_data):
             with patch.object(client, '_handle_env_update') as mock_handle:
-                msg = mock_mqtt_message('test/env_update/topic', 'env payload')
+                msg = mock_mqtt_message('test/env_update/topic', '{"env": "update"}')
                 client._base_mqtt_input_func(msg)
                 
                 mock_handle.assert_called_once()
@@ -512,7 +521,7 @@ class TestPepeunitClientMQTTHandlers:
         with patch.object(client.schema, '_schema_data', test_schema_data):
             with patch.object(client, '_handle_update', side_effect=Exception("Handler error")):
                 with patch.object(client.logger, 'error') as mock_error:
-                    msg = mock_mqtt_message('test/update/topic', 'payload')
+                    msg = mock_mqtt_message('test/update/topic', '{"test": "payload"}')
                     client._base_mqtt_input_func(msg)
                     
                     # Проверяем что ошибка залогирована
@@ -622,7 +631,7 @@ class TestPepeunitClientMainCycle:
             
             assert mock_base_handler.call_count == 3
             assert output_handler.call_count == 3
-            assert client._mqtt_output_handler == output_handler
+            assert client.mqtt_output_handler == output_handler
 
     def test_stop_main_cycle(self, env_file, schema_file, log_file):
         """Тест остановки главного цикла"""
@@ -640,7 +649,7 @@ class TestPepeunitClientMainCycle:
         output_handler = Mock()
         client.set_output_handler(output_handler)
         
-        assert client._mqtt_output_handler == output_handler
+        assert client.mqtt_output_handler == output_handler
 
 
 class TestPepeunitClientIntegration:
@@ -698,7 +707,7 @@ class TestPepeunitClientIntegration:
             combined_handler = mock_mqtt_client.set_input_handler.call_args[0][0]
             
             # Симулируем входящее сообщение
-            msg = mock_mqtt_message('test/env_update', 'env_update_payload')
+            msg = mock_mqtt_message('test/env_update', '{"env_update": "payload"}')
             
             with patch.object(client, '_handle_env_update') as mock_handle_env:
                 combined_handler(msg)

@@ -232,6 +232,42 @@ class TestPepeunitRestClient:
             mock_response.raise_for_status.assert_called_once()
             assert result == expected_state
 
+    def test_download_file_from_url_success(self, mock_settings, mock_httpx, temp_dir):
+        """Тест успешного скачивания файла по URL"""
+        client = PepeunitRestClient(mock_settings)
+        client._httpx_client = mock_httpx
+        
+        # Настройка ответа
+        mock_response = Mock()
+        mock_response.content = b'test file content from url'
+        mock_httpx.get.return_value = mock_response
+        
+        url = 'https://external.example.com/file.txt'
+        file_path = f"{temp_dir}/downloaded_file.txt"
+        
+        client.download_file_from_url(url, file_path)
+        
+        # Проверяем вызов API
+        mock_httpx.get.assert_called_once_with(url)
+        mock_response.raise_for_status.assert_called_once()
+        
+        # Проверяем что файл записан
+        with open(file_path, 'rb') as f:
+            content = f.read()
+        assert content == b'test file content from url'
+
+    def test_download_file_from_url_http_error(self, mock_settings, mock_httpx):
+        """Тест обработки HTTP ошибки при скачивании файла по URL"""
+        client = PepeunitRestClient(mock_settings)
+        client._httpx_client = mock_httpx
+        
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = Exception("HTTP 403")
+        mock_httpx.get.return_value = mock_response
+        
+        with pytest.raises(Exception, match="HTTP 403"):
+            client.download_file_from_url('https://example.com/file', '/path/to/file')
+
     def test_inherited_auth_headers_method(self, mock_settings):
         """Тест использования унаследованного метода получения заголовков"""
         mock_settings.PEPEUNIT_TOKEN = 'inherited_token'
@@ -291,19 +327,24 @@ class TestPepeunitRestClient:
         # 4. Устанавливаем состояние
         state_response = Mock()
         
-        # 5. Получаем состояние
+        # 5. Скачиваем файл по URL
+        file_response = Mock()
+        file_response.content = b'external file content'
+        
+        # 6. Получаем состояние
         get_state_data = {'integration_state': 'active'}
         get_state_response = Mock()
         get_state_response.json.return_value = get_state_data
         
         # Настройка ответов mock_httpx
-        mock_httpx.get.side_effect = [update_response, env_response, schema_response, get_state_response]
+        mock_httpx.get.side_effect = [update_response, env_response, schema_response, file_response, get_state_response]
         mock_httpx.put.return_value = state_response
         
         # Выполняем операции
         update_file = f"{temp_dir}/integration_update.tar.gz"
         env_file = f"{temp_dir}/integration_env.json"
         schema_file = f"{temp_dir}/integration_schema.json"
+        external_file = f"{temp_dir}/external_file.txt"
         
         with patch('pepeunit_client.file_manager.FileManager.write_json') as mock_write_json:
             # 1. Скачиваем обновление
@@ -315,11 +356,14 @@ class TestPepeunitRestClient:
             # 3. Скачиваем схему
             client.download_schema(unit_uuid, schema_file)
             
-            # 4. Устанавливаем состояние
+            # 4. Скачиваем файл по URL
+            client.download_file_from_url('https://external.example.com/file.txt', external_file)
+            
+            # 5. Устанавливаем состояние
             test_state = {'sensor': 42}
             client.set_state_storage(unit_uuid, test_state)
             
-            # 5. Получаем состояние
+            # 6. Получаем состояние
             retrieved_state = client.get_state_storage(unit_uuid)
         
         # Проверяем результаты
@@ -329,13 +373,17 @@ class TestPepeunitRestClient:
         with open(update_file, 'rb') as f:
             assert f.read() == b'integration update content'
         
+        # Проверяем что внешний файл записан
+        with open(external_file, 'rb') as f:
+            assert f.read() == b'external file content'
+        
         # Проверяем вызовы записи JSON
         assert mock_write_json.call_count == 2
         mock_write_json.assert_any_call(env_file, env_data)
         mock_write_json.assert_any_call(schema_file, schema_data)
         
         # Проверяем HTTP вызовы
-        assert mock_httpx.get.call_count == 4
+        assert mock_httpx.get.call_count == 5
         assert mock_httpx.put.call_count == 1
 
     def test_error_handling_in_all_methods(self, mock_settings, mock_httpx):
