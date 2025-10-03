@@ -23,6 +23,21 @@ pip install pepeunit-client[all]
 ### Basic Usage
 
 ```python
+"""
+Basic PepeUnit Client Example
+
+To use this example, simply create a Pepeunit Unit based on the repository https://git.pepemoss.com/pepe/pepeunit/units/universal_test_unit on any instance.
+
+The resulting schema.json and env.json files should be added to the example directory.
+
+This example demonstrates basic usage of the PepeUnit client with both MQTT and REST functionality.
+It shows how to:
+- Initialize the client with configuration files
+- Set up message handlers
+- Subscribe to topics
+- Run the main application cycle
+"""
+
 import time
 from pepeunit_client import PepeunitClient, RestartMode
 from pepeunit_client.enums import SearchTopicType, SearchScope
@@ -88,7 +103,7 @@ def main():
         enable_mqtt=True,
         enable_rest=True,
         cycle_speed=1.0,  # 1 second cycle
-        restart_mode=RestartMode.RESTART_EXEC  # Default restart behavior
+        restart_mode=RestartMode.RESTART_EXEC
     )
     
     # Log startup
@@ -110,6 +125,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 ```
 
@@ -227,6 +243,7 @@ PepeunitClient(
 - **`run_main_cycle(output_handler: Optional[Callable] = None)`**: Start main application loop
 - **`stop_main_cycle()`**: Stop main application loop
 - **`set_output_handler(output_handler: Callable)`**: Set custom output message handler
+- **`set_custom_update_handler(custom_update_handler: Callable)`**: Set custom update handler for device program updates
 
 #### Restart Modes
 
@@ -332,7 +349,6 @@ Configuration manager for environment variables and settings.
 - **`COMMIT_VERSION`** (str): Current application version
 - **`PING_INTERVAL`** (int): Ping interval in seconds
 - **`STATE_SEND_INTERVAL`** (int): State broadcast interval in seconds
-- **`DELAY_PUB_MSG`** (int): Message publication delay interval in seconds
 - **`MINIMAL_LOG_LEVEL`** (str): Minimum logging level
 
 #### Methods
