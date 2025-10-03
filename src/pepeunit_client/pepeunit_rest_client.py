@@ -65,6 +65,13 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         
         FileManager.write_json(file_path, schema_data)
     
+    def download_file_from_url(self, url: str, filepath: str) -> None:
+        response = self._httpx_client.get(url)
+        response.raise_for_status()
+        
+        with open(filepath, 'wb') as f:
+            f.write(response.content)
+    
     def set_state_storage(self, unit_uuid: str, state: Dict[str, Any]) -> None:
         url = f"{self._get_base_url()}/unit/{unit_uuid}"
         headers = self._get_auth_headers()

@@ -55,8 +55,9 @@ class PepeunitClient:
         if self.mqtt_client:
             self.logger.mqtt_client = self.mqtt_client
         
-        self._mqtt_input_handler: Optional[Callable] = None
-        self._mqtt_output_handler: Optional[Callable] = None
+        self.mqtt_input_handler: Optional[Callable] = None
+        self.mqtt_output_handler: Optional[Callable] = None
+        self.custom_update_handler: Optional[Callable] = None
 
         self._running = False
         self._last_state_send = 0
@@ -95,6 +96,9 @@ class PepeunitClient:
             
             FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
             self.logger.info(f"Copied directory contents from {temp_extract_dir} to {unit_directory}")
+        
+        os.remove(archive_path)
+        self.logger.info(f"Archive removed {archive_path}")
         
         if self.restart_mode == RestartMode.RESTART_POPEN:
             self.stop_main_cycle()
@@ -159,18 +163,18 @@ class PepeunitClient:
         }
     
     def set_mqtt_input_handler(self, handler: Callable) -> None:
-        self._mqtt_input_handler = handler
+        self.mqtt_input_handler = handler
         if self.mqtt_client:
             def combined_handler(msg):
                 self._base_mqtt_input_func(msg)
-                if self._mqtt_input_handler:
-                    self._mqtt_input_handler(self, msg)
+                if self.mqtt_input_handler:
+                    self.mqtt_input_handler(self, msg)
             self.mqtt_client.set_input_handler(combined_handler)
 
     def _base_mqtt_input_func(self, msg) -> None:
         topic = msg.topic
-        payload = msg.payload.decode()
-        
+        payload = json.loads(msg.payload.decode())
+
         try:
             for topic_key in self.schema.input_base_topic:
                 if topic in self.schema.input_base_topic[topic_key]:
@@ -234,17 +238,21 @@ class PepeunitClient:
             
             self.download_update(archive_path)
             self.update_device_program(archive_path)
-            os.remove(archive_path)
+            
             self.logger.info("Full update cycle completed successfully")
         except Exception as e:
             self.logger.error(f"Update failed: {str(e)}")
             raise
         
-    def _handle_update(self, payload: str) -> None:
+    def _handle_update(self, payload: dict) -> None:
         self.logger.info("Update request received via MQTT")
         if self.enable_rest and self.rest_client:
+            
             try:
-                self.perform_update()
+                if self.custom_update_handler:
+                    self.custom_update_handler(self, payload)
+                else:
+                    self.perform_update()
             except Exception as e:
                 self.logger.error(f"Failed to perform update: {str(e)}")
         else:
@@ -326,14 +334,14 @@ class PepeunitClient:
     def run_main_cycle(self, output_handler: Optional[Callable] = None) -> None:
         self._running = True
         if output_handler:
-            self._mqtt_output_handler = output_handler
+            self.mqtt_output_handler = output_handler
         
         try:
             while self._running:
                 self._base_mqtt_output_handler()
                 
-                if self._mqtt_output_handler:
-                    self._mqtt_output_handler(self)
+                if self.mqtt_output_handler:
+                    self.mqtt_output_handler(self)
                 
                 time.sleep(self.cycle_speed)
                 
@@ -343,10 +351,11 @@ class PepeunitClient:
             self._running = False
     
     def set_output_handler(self, output_handler: Callable) -> None:
-        self._mqtt_output_handler = output_handler
+        self.mqtt_output_handler = output_handler
+
+    def set_custom_update_handler(self, custom_update_handler: Callable) -> None:
+        self.custom_update_handler = custom_update_handler
 
     def stop_main_cycle(self) -> None:
         self.logger.info('Stop main cycle')
         self._running = False
-    
-    
