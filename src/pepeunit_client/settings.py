@@ -1,4 +1,7 @@
-from typing import Any, Dict, Optional
+import json
+import base64
+
+from typing import Optional
 from .file_manager import FileManager
 
 
@@ -16,7 +19,8 @@ class Settings:
     COMMIT_VERSION: str = ''
     PING_INTERVAL: int = 30
     STATE_SEND_INTERVAL: int = 300
-    MINIMAL_LOG_LEVEL: str = 'Debug'
+    MIN_LOG_LEVEL: str = 'Debug'
+    MAX_LOG_LENGTH: int = 64
 
     def __init__(self, env_file_path: Optional[str] = None, **kwargs) -> None:
         self.env_file_path = env_file_path
@@ -26,6 +30,20 @@ class Settings:
         
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    @property
+    def unit_uuid(self) -> str:
+        token_parts = self.settings.PEPEUNIT_TOKEN.split('.')
+        if len(token_parts) != 3:
+            raise ValueError("Invalid JWT token format")
+        
+        payload = token_parts[1]
+        payload += '=' * (4 - len(payload) % 4)
+        
+        decoded_payload = base64.b64decode(payload)
+        payload_data = json.loads(decoded_payload)
+        
+        return payload_data['uuid']
     
     def load_from_file(self) -> None:
         if not self.env_file_path or not FileManager.file_exists(self.env_file_path):
@@ -33,20 +51,4 @@ class Settings:
         
         env_data = FileManager.read_json(self.env_file_path)
         for key, value in env_data.items():
-            setattr(self, key, value)
-    
-    def get_env_values(self) -> Dict[str, Any]:
-        if not self.env_file_path or not FileManager.file_exists(self.env_file_path):
-            return {}
-        return FileManager.read_json(self.env_file_path)
-    
-    def update_env_file(self, new_env_file_path: str) -> None:
-        if not self.env_file_path:
-            raise ValueError("env_file_path not set")
-        
-        FileManager.copy_file(new_env_file_path, self.env_file_path)
-        self.load_from_file()
-    
-    def update(self, **kwargs) -> None:
-        for key, value in kwargs.items():
             setattr(self, key, value)

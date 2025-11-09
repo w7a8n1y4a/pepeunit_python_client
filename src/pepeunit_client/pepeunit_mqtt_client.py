@@ -22,11 +22,11 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         self._client: Optional[Any] = None
         self._input_handler: Optional[Callable] = None
         
-    def _get_paho_client(self) -> Any:
+    def _get_client(self) -> Any:
         if mqtt_client_paho is None or uuid is None:
             raise ImportError("paho-mqtt is required for MQTT functionality")
             
-        client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, str(uuid.uuid4()))
+        client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, self.settings.unit_uuid)
         client.username_pw_set(self.settings.PEPEUNIT_TOKEN, '')
         client.on_connect = self._on_connect
         client.on_message = self._on_message
@@ -35,7 +35,7 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
     
     def connect(self) -> None:
         if not self._client:
-            self._client = self._get_paho_client()
+            self._client = self._get_client()
         
         self._client.connect(self.settings.MQTT_URL, self.settings.MQTT_PORT)
         self._client.loop_start()
@@ -44,14 +44,17 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         if self._client:
             self._client.loop_stop()
             self._client.disconnect()
+            self.logger.info(f"Disconnected from MQTT Broker", file_only=True)
     
     def _on_connect(self, client, userdata, flags, rc) -> None:
         if rc == 0:
-            self.logger.info("Connected to MQTT Broker!")
+            self.logger.info("Connected to MQTT Broker")
         else:
-            self.logger.critical(f"Failed to connect to MQTT, return code {rc}")
+            self.logger.error(f"Error to connect to MQTT, return code {rc}", file_only=True)
     
     def _on_message(self, client, userdata, msg) -> None:
+
+        msg.payload = msg.payload.decode()
         try:
             if self._input_handler:
                 self._input_handler(msg)
@@ -66,6 +69,7 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         if self._client:
             for topic in topics:
                 self._client.subscribe(topic)
+            self.logger.info(f'Success subscribed to {len(topics)} topics')
     
     def publish(self, topic: str, message: str) -> None:
         if self._client:

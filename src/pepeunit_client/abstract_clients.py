@@ -107,17 +107,6 @@ class AbstractPepeunitRestClient(ABC):
         pass
     
     @abstractmethod
-    def download_file_from_url(self, url: str, env_file_path: str) -> None:
-        """
-        Download file from external URL.
-        
-        Args:
-            url: URL to download file from
-            file_path: Local path where to save the downloaded file
-        """
-        pass
-    
-    @abstractmethod
     def set_state_storage(self, unit_uuid: str, state: Dict[str, Any]) -> None:
         """
         Store state data in Pepeunit Unit Storage.

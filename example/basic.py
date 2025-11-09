@@ -21,7 +21,7 @@ from pepeunit_client.enums import SearchTopicType, SearchScope
 last_output_send_time = 0
 
 
-def handle_input_messages(client: PepeunitClient, msg: bytes):
+def handle_input_messages(client: PepeunitClient, msg):
     try:
         topic_parts = msg.topic.split("/")
 
@@ -33,22 +33,27 @@ def handle_input_messages(client: PepeunitClient, msg: bytes):
             )
 
             if topic_name == "input/pepeunit":
-                value = msg.payload.decode()
+                value = msg.payload
                 try:
                     value = int(value)
+                    
+                    # check work set to storage
+                    if value < 10000:
+                        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
+                        client.logger.info(f"Success set state")
+                    
+                    # check work get from storage
+                    if value > 10000 and value < 20000:
+                        state = client.rest_client.get_state_storage()
+                        client.logger.info(f"Success get state: {state}")
 
-                    # example logic
-                    if value == 0:
-                        client.logger.info(f"Get message from input/pepeunit topics {value}")
-                    else:
-                        # send value to all topic by name
-                        client.publish_to_topics("output/pepeunit", str(value))
+                    client.logger.debug(f"Get from input/pepeunit: {value}", file_only=True)
 
                 except ValueError:
                     client.logger.error(f"Value is not a number: {value}")
 
     except Exception as e:
-        client.logger.error(f"Error in mqtt_input_handler: {e}")
+        client.logger.error(f"Input handler error: {e}")
 
 
 def handle_output_messages(client: PepeunitClient):
@@ -60,7 +65,7 @@ def handle_output_messages(client: PepeunitClient):
         # message example
         message = '12.45'
         
-        client.logger.info(f"Send message to output/pepeunit topics: {message}")
+        client.logger.info(f"Send message to output/pepeunit topics: {message}", file_only=True)
 
         # Try to publish to sensor output topics
         client.publish_to_topics("output/pepeunit", message)
@@ -83,7 +88,7 @@ def main():
     
     # Log startup
     client.logger.debug("PepeUnit client created")
-    client.logger.debug(f"Device UUID: {client.unit_uuid}")
+    client.logger.debug(f"Device UUID: {client.settings.unit_uuid}")
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
@@ -94,8 +99,11 @@ def main():
     # Subscribe to all input topics from schema, be sure to after connecting with the broker
     client.subscribe_all_schema_topics()
 
+    # Set output handler
+    client.set_output_handler(handle_output_messages)
+
     # Run the main cycle with set output handler
-    client.run_main_cycle(handle_output_messages)
+    client.run_main_cycle()
 
 
 if __name__ == "__main__":

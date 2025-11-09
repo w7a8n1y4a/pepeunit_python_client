@@ -4,7 +4,6 @@ from typing import Dict, Any, TYPE_CHECKING
 from .file_manager import FileManager
 from .abstract_clients import AbstractPepeunitRestClient
 
-# Import for mocking in tests
 try:
     import httpx
 except ImportError:
@@ -25,10 +24,10 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         return httpx
     
     
-    def download_update(self, unit_uuid: str, file_path: str) -> None:
+    def download_update(self, file_path: str) -> None:
         wbits = 9
         level = 9
-        url = f"{self._get_base_url()}/units/firmware/tgz/{unit_uuid}?wbits={wbits}&level={level}"
+        url = f"{self._get_base_url()}/units/firmware/tgz/{self.settings.unit_uuid}?wbits={wbits}&level={level}"
         headers = self._get_auth_headers()
         
         response = self._httpx_client.get(url, headers=headers)
@@ -37,8 +36,8 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         with open(file_path, 'wb') as f:
             f.write(response.content)
     
-    def download_env(self, unit_uuid: str, file_path: str) -> None:
-        url = f"{self._get_base_url()}/units/env/{unit_uuid}"
+    def download_env(self, file_path: str) -> None:
+        url = f"{self._get_base_url()}/units/env/{self.settings.unit_uuid}"
         headers = self._get_auth_headers()
         
         response = self._httpx_client.get(url, headers=headers)
@@ -51,8 +50,8 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         
         FileManager.write_json(file_path, env_data)
     
-    def download_schema(self, unit_uuid: str, file_path: str) -> None:
-        url = f"{self._get_base_url()}/units/get_current_schema/{unit_uuid}"
+    def download_schema(self, file_path: str) -> None:
+        url = f"{self._get_base_url()}/units/get_current_schema/{self.settings.unit_uuid}"
         headers = self._get_auth_headers()
         
         response = self._httpx_client.get(url, headers=headers)
@@ -65,26 +64,19 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         
         FileManager.write_json(file_path, schema_data)
     
-    def download_file_from_url(self, url: str, filepath: str) -> None:
-        response = self._httpx_client.get(url)
-        response.raise_for_status()
-        
-        with open(filepath, 'wb') as f:
-            f.write(response.content)
-    
-    def set_state_storage(self, unit_uuid: str, state: Dict[str, Any]) -> None:
-        url = f"{self._get_base_url()}/unit/{unit_uuid}"
+    def set_state_storage(self, state: Dict[str, Any]) -> None:
+        url = f"{self._get_base_url()}/units/set_state_storage/{self.settings.unit_uuid}"
         headers = self._get_auth_headers()
         headers['content-type'] = 'application/json'
         
-        response = self._httpx_client.put(url, headers=headers, json=state)
+        response = self._httpx_client.post(url, headers=headers, data=json.dumps({'state':state}))
         response.raise_for_status()
     
-    def get_state_storage(self, unit_uuid: str) -> Dict[str, Any]:
-        url = f"{self._get_base_url()}/unit/{unit_uuid}"
+    def get_state_storage(self) -> str:
+        url = f"{self._get_base_url()}/units/get_state_storage/{self.settings.unit_uuid}"
         headers = self._get_auth_headers()
         
         response = self._httpx_client.get(url, headers=headers)
         response.raise_for_status()
         
-        return response.json()
+        return response.text

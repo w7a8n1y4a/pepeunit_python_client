@@ -81,7 +81,7 @@ class FileManager:
             shutil.rmtree(directory_path)
     
     @staticmethod
-    def append_to_json_list(file_path: str, item: Dict[str, Any]) -> None:
+    def append_to_json_list(file_path: str, item: Dict[str, Any], max_length: int = None) -> None:
         if not os.path.exists(file_path):
             FileManager.write_json(file_path, [])
         
@@ -90,4 +90,8 @@ class FileManager:
             data = []
         
         data.append(item)
+        
+        if max_length is not None and len(data) > max_length:
+            data = data[-max_length:]
+        
         FileManager.write_json(file_path, data)

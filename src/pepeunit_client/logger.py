@@ -1,5 +1,5 @@
 import json
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import datetime
 
 from .enums import LogLevel, BaseOutputTopicType
@@ -8,10 +8,11 @@ from .file_manager import FileManager
 if TYPE_CHECKING:
     from .schema_manager import SchemaManager
     from .settings import Settings
+    from .abstract_clients import AbstractPepeunitMqttClient
 
 
 class Logger:
-    def __init__(self, log_file_path: str, mqtt_client: Optional[Any] = None, 
+    def __init__(self, log_file_path: str, mqtt_client: Optional['AbstractPepeunitMqttClient'] = None, 
                  schema_manager: Optional['SchemaManager'] = None,
                  settings: Optional['Settings'] = None):
         self.log_file_path = log_file_path
@@ -33,10 +34,10 @@ class Logger:
         if not self.settings:
             return True
         
-        minimal_level = self._string_to_log_level(self.settings.MINIMAL_LOG_LEVEL)
+        minimal_level = self._string_to_log_level(self.settings.MIN_LOG_LEVEL)
         return level.get_int_level() >= minimal_level.get_int_level()
     
-    def _log(self, level: LogLevel, message: str) -> None:
+    def _log(self, level: LogLevel, message: str, file_only: bool = False) -> None:
         if not self._should_log(level):
             return
             
@@ -46,39 +47,32 @@ class Logger:
             'create_datetime': self._get_current_datetime()
         }
         
-        self._write_to_file(log_entry)
+        FileManager.append_to_json_list(self.log_file_path, log_entry, self.settings.MAX_LOG_LENGTH)
         
-        if self.mqtt_client and self.schema_manager:
-            self._send_mqtt(log_entry)
-    
-    def _write_to_file(self, log_entry: Dict[str, Any]) -> None:
-        FileManager.append_to_json_list(self.log_file_path, log_entry)
-    
-    def _send_mqtt(self, log_entry: Dict[str, Any]) -> None:
-        try:
-            if BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema_manager.output_base_topic:
-                topic = self.schema_manager.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
+        if not file_only and self.mqtt_client and BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema_manager.output_base_topic:
+            topic = self.schema_manager.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
+            try:
                 self.mqtt_client.publish(topic, json.dumps(log_entry))
-        except Exception:
-            pass
+            except Exception:
+                pass
     
     def _get_current_datetime(self) -> str:
         return datetime.datetime.now(datetime.timezone.utc).isoformat()
     
-    def debug(self, message: str) -> None:
-        self._log(LogLevel.DEBUG, message)
+    def debug(self, message: str, file_only: bool = False) -> None:
+        self._log(LogLevel.DEBUG, message, file_only)
     
-    def info(self, message: str) -> None:
-        self._log(LogLevel.INFO, message)
+    def info(self, message: str, file_only: bool = False) -> None:
+        self._log(LogLevel.INFO, message, file_only)
     
-    def warning(self, message: str) -> None:
-        self._log(LogLevel.WARNING, message)
+    def warning(self, message: str, file_only: bool = False) -> None:
+        self._log(LogLevel.WARNING, message, file_only)
     
-    def error(self, message: str) -> None:
-        self._log(LogLevel.ERROR, message)
+    def error(self, message: str, file_only: bool = False) -> None:
+        self._log(LogLevel.ERROR, message, file_only)
     
-    def critical(self, message: str) -> None:
-        self._log(LogLevel.CRITICAL, message)
+    def critical(self, message: str, file_only: bool = False) -> None:
+        self._log(LogLevel.CRITICAL, message, file_only)
     
     def get_full_log(self) -> list:
         if not FileManager.file_exists(self.log_file_path):
