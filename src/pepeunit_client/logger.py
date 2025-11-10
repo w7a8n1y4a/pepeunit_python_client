@@ -47,7 +47,7 @@ class Logger:
             'create_datetime': self._get_current_datetime()
         }
         
-        FileManager.append_to_json_list(self.log_file_path, log_entry, self.settings.MAX_LOG_LENGTH)
+        FileManager.append_ndjson_with_limit(self.log_file_path, log_entry, self.settings.MAX_LOG_LENGTH)
         
         if not file_only and self.mqtt_client and BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema_manager.output_base_topic:
             topic = self.schema_manager.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
@@ -78,7 +78,15 @@ class Logger:
         if not FileManager.file_exists(self.log_file_path):
             return []
         
-        return FileManager.read_json(self.log_file_path)
+        return list(FileManager.iter_ndjson(self.log_file_path))
+    
+    def iter_log(self):
+        if not FileManager.file_exists(self.log_file_path):
+            return
+        
+        for item in FileManager.iter_ndjson(self.log_file_path):
+            yield item
     
     def reset_log(self) -> None:
-        FileManager.write_json(self.log_file_path, [])
+        with open(self.log_file_path, 'w', encoding='utf-8') as f:
+            pass

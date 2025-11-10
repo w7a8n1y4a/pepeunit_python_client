@@ -81,17 +81,79 @@ class FileManager:
             shutil.rmtree(directory_path)
     
     @staticmethod
-    def append_to_json_list(file_path: str, item: Dict[str, Any], max_length: int = None) -> None:
-        if not os.path.exists(file_path):
-            FileManager.write_json(file_path, [])
+    def append_ndjson_with_limit(file_path: str, item: Dict[str, Any], max_lines: int = None) -> None:
+        directory = os.path.dirname(file_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         
-        data = FileManager.read_json(file_path)
-        if not isinstance(data, list):
-            data = []
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                first_char = f.read(1)
+                if first_char == '[':
+                    try:
+                        f.seek(0)
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            with open(file_path, 'w', encoding='utf-8') as fw:
+                                for it in data:
+                                    json.dump(it, fw, ensure_ascii=False)
+                                    fw.write('\n')
+                    except Exception:
+                        pass
         
-        data.append(item)
+        try:
+            with open(file_path, 'a', encoding='utf-8') as f:
+                json.dump(item, f, ensure_ascii=False)
+                f.write('\n')
+        except Exception:
+            pass
         
-        if max_length is not None and len(data) > max_length:
-            data = data[-max_length:]
+        if max_lines is not None and max_lines > 0:
+            FileManager.trim_ndjson(file_path, max_lines)
+    
+    @staticmethod
+    def iter_ndjson(file_path: str):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        yield json.loads(line)
+                    except Exception:
+                        continue
+        except Exception:
+            return
+    
+    @staticmethod
+    def trim_ndjson(file_path: str, max_lines: int) -> None:
+        if max_lines <= 0:
+            return
         
-        FileManager.write_json(file_path, data)
+        try:
+            total = 0
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for _ in f:
+                    total += 1
+            
+            if total <= max_lines:
+                return
+            
+            to_skip = total - max_lines
+            tmp_path = file_path + '.tmp'
+            
+            with open(file_path, 'r', encoding='utf-8') as src, open(tmp_path, 'w', encoding='utf-8') as dst:
+                for line in src:
+                    if to_skip > 0:
+                        to_skip -= 1
+                        continue
+                    dst.write(line)
+            
+            os.replace(tmp_path, file_path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except Exception:
+                    pass
