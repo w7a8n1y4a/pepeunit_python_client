@@ -74,7 +74,7 @@ class AbstractPepeunitRestClient(ABC):
         self.settings = settings
     
     @abstractmethod
-    def download_update(self, unit_uuid: str, file_path: str) -> None:
+    def download_update(self, file_path: str) -> None:
         """
         Download firmware update archive.
         
@@ -85,7 +85,7 @@ class AbstractPepeunitRestClient(ABC):
         pass
     
     @abstractmethod
-    def download_env(self, unit_uuid: str, file_path: str) -> None:
+    def download_env(self, file_path: str) -> None:
         """
         Download env.json configuration.
         
@@ -96,7 +96,7 @@ class AbstractPepeunitRestClient(ABC):
         pass
     
     @abstractmethod
-    def download_schema(self, unit_uuid: str, file_path: str) -> None:
+    def download_schema(self, file_path: str) -> None:
         """
         Download schema.json configuration.
         
@@ -107,7 +107,7 @@ class AbstractPepeunitRestClient(ABC):
         pass
     
     @abstractmethod
-    def set_state_storage(self, unit_uuid: str, state: Dict[str, Any]) -> None:
+    def set_state_storage(self, state: Dict[str, Any]) -> None:
         """
         Store state data in Pepeunit Unit Storage.
         

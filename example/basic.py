@@ -19,7 +19,7 @@ from pepeunit_client.enums import SearchTopicType, SearchScope
 
 # Global variable to track last message send time
 last_output_send_time = 0
-
+inc = 0
 
 def handle_input_messages(client: PepeunitClient, msg):
     try:
@@ -38,12 +38,12 @@ def handle_input_messages(client: PepeunitClient, msg):
                     value = int(value)
                     
                     # check work set to storage
-                    if value < 10000:
+                    if value < 10:
                         client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
                         client.logger.info(f"Success set state")
                     
                     # check work get from storage
-                    if value > 10000 and value < 20000:
+                    if value > 10 and value < 20:
                         state = client.rest_client.get_state_storage()
                         client.logger.info(f"Success get state: {state}")
 
@@ -58,20 +58,23 @@ def handle_input_messages(client: PepeunitClient, msg):
 
 def handle_output_messages(client: PepeunitClient):
     global last_output_send_time
+    global inc
+
     current_time = time.time()
     
     # Send data every MESSAGE_SEND_INTERVAL seconds, similar to _base_mqtt_output_handler
     if current_time - last_output_send_time >= client.settings.DELAY_PUB_MSG:
         # message example
-        message = '12.45'
+        message = inc
         
-        client.logger.info(f"Send message to output/pepeunit topics: {message}", file_only=True)
+        client.logger.debug(f"Send to output/pepeunit: {message}", file_only=True)
 
         # Try to publish to sensor output topics
         client.publish_to_topics("output/pepeunit", message)
         
         # Update the last message send time
         last_output_send_time = current_time
+        inc += 1
 
 
 def main():
@@ -85,10 +88,6 @@ def main():
         cycle_speed=1.0,  # 1 second cycle
         restart_mode=RestartMode.RESTART_EXEC
     )
-    
-    # Log startup
-    client.logger.debug("PepeUnit client created")
-    client.logger.debug(f"Device UUID: {client.settings.unit_uuid}")
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)

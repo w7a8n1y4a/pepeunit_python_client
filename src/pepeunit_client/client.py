@@ -136,7 +136,7 @@ class PepeunitClient:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
 
-        self.rest_client.download_env(self.settings.unit_uuid, file_path)
+        self.rest_client.download_env(file_path)
         self.settings.load_from_file()
         self.logger.info('Success update env')
     
@@ -147,7 +147,7 @@ class PepeunitClient:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
 
-        self.rest_client.download_schema(self.settings.unit_uuid, file_path)
+        self.rest_client.download_schema(file_path)
         self.schema.update_from_file()
         self.subscribe_all_schema_topics()
         self.logger.info('Success update schema')
@@ -184,7 +184,7 @@ class PepeunitClient:
             temp_dir = tempfile.gettempdir()
             archive_path = os.path.join(temp_dir, f"update_{self.settings.unit_uuid}.tar.gz")
             
-            self.rest_client.download_update(self.settings.unit_uuid, archive_path)
+            self.rest_client.download_update(archive_path)
             self.logger.info('Success download update archive', file_only=True)
 
             self.update_device_program(archive_path)

@@ -33,7 +33,7 @@ class Settings:
 
     @property
     def unit_uuid(self) -> str:
-        token_parts = self.settings.PEPEUNIT_TOKEN.split('.')
+        token_parts = self.PEPEUNIT_TOKEN.split('.')
         if len(token_parts) != 3:
             raise ValueError("Invalid JWT token format")
         
