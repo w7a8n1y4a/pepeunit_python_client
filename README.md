@@ -80,8 +80,8 @@ def handle_output_messages(client: PepeunitClient):
     global last_output_send_time
     current_time = time.time()
     
-    # Send data every MESSAGE_SEND_INTERVAL seconds, similar to _base_mqtt_output_handler
-    if current_time - last_output_send_time >= client.settings.DELAY_PUB_MSG:
+    # Send data every 5 seconds
+    if current_time - last_output_send_time >= 5.0:
         # message example
         message = '12.45'
         
@@ -119,8 +119,11 @@ def main():
     # Subscribe to all input topics from schema, be sure to after connecting with the broker
     client.subscribe_all_schema_topics()
 
-    # Run the main cycle with set output handler
-    client.run_main_cycle(handle_output_messages)
+    # Set output handler
+    client.set_output_handler(handle_output_messages)
+
+    # Run the main cycle
+    client.run_main_cycle()
 
 
 if __name__ == "__main__":
@@ -222,7 +225,8 @@ PepeunitClient(
     mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
     rest_client: Optional[AbstractPepeunitRestClient] = None,
     cycle_speed: float = 0.1,
-    restart_mode: RestartMode = RestartMode.RESTART_EXEC
+    restart_mode: RestartMode = RestartMode.RESTART_EXEC,
+    skip_version_check: bool = False
 )
 ```
 
@@ -237,10 +241,9 @@ PepeunitClient(
 
 #### Core Methods
 
-- **`set_cycle_speed(speed: float)`**: Set main cycle execution speed
 - **`get_system_state() -> Dict[str, Any]`**: Get current system status (memory, CPU, etc.)
 - **`update_device_program(archive_path: str)`**: Update device program from tar.gz archive
-- **`run_main_cycle(output_handler: Optional[Callable] = None)`**: Start main application loop
+- **`run_main_cycle()`**: Start main application loop
 - **`stop_main_cycle()`**: Stop main application loop
 - **`set_output_handler(output_handler: Callable)`**: Set custom output message handler
 - **`set_custom_update_handler(custom_update_handler: Callable)`**: Set custom update handler for device program updates
@@ -297,15 +300,10 @@ client = PepeunitClient(
 
 #### REST Methods (require `enable_rest=True`)
 
-- **`download_update(archive_path: str)`**: Download firmware update archive
 - **`download_env(file_path: str)`**: Download environment configuration
 - **`download_schema(file_path: str)`**: Download topic schema configuration
-- **`set_state_storage(state: Dict[str, Any])`**: Upload state to PepeUnit storage
-- **`get_state_storage() -> Dict[str, Any]`**: Retrieve state from PepeUnit storage
-
-#### Combined Methods (require both MQTT and REST)
-
-- **`perform_update()`**: Complete update cycle: download, extract, and apply
+- **`set_state_storage(state: str)`**: Upload state to PepeUnit storage
+- **`get_state_storage() -> str`**: Retrieve state from PepeUnit storage
 
 ### PepeunitClient.mqtt_client
 
@@ -325,11 +323,11 @@ REST client interface implementing `AbstractPepeunitRestClient`.
 
 #### Methods
 
-- **`download_update(unit_uuid: str, file_path: str)`**: Download firmware update
-- **`download_env(unit_uuid: str, file_path: str)`**: Download environment config
-- **`download_schema(unit_uuid: str, file_path: str)`**: Download schema config
-- **`set_state_storage(unit_uuid: str, state: Dict[str, Any])`**: Store device state
-- **`get_state_storage(unit_uuid: str) -> Dict[str, Any]`**: Retrieve device state
+- **`download_update(file_path: str)`**: Download firmware update
+- **`download_env(file_path: str)`**: Download environment config
+- **`download_schema(file_path: str)`**: Download schema config
+- **`set_state_storage(state: Dict[str, Any])`**: Store device state
+- **`get_state_storage() -> str`**: Retrieve device state
 
 ### PepeunitClient.settings
 
@@ -349,14 +347,13 @@ Configuration manager for environment variables and settings.
 - **`COMMIT_VERSION`** (str): Current application version
 - **`PING_INTERVAL`** (int): Ping interval in seconds
 - **`STATE_SEND_INTERVAL`** (int): State broadcast interval in seconds
-- **`MINIMAL_LOG_LEVEL`** (str): Minimum logging level
+- **`MIN_LOG_LEVEL`** (str): Minimum logging level (Debug, Info, Warning, Error, Critical)
+- **`MAX_LOG_LENGTH`** (int): Maximum number of log entries to keep in file
+- **`unit_uuid`** (str): Device UUID extracted from JWT token
 
 #### Methods
 
 - **`load_from_file()`**: Reload settings from env.json file
-- **`get_env_values() -> Dict[str, Any]`**: Get all environment values as dictionary
-- **`update_env_file(new_env_file_path: str)`**: Replace current env file with new one
-- **`update(**kwargs)`**: Update specific settings programmatically
 
 ### PepeunitClient.schema
 
@@ -372,7 +369,6 @@ Schema manager for MQTT topic configuration.
 #### Methods
 
 - **`update_from_file()`**: Reload schema from schema.json file
-- **`update_schema(schema_dict: Dict[str, Any])`**: Update schema with new configuration
 - **`find_topic_by_unit_node(search_value: str, search_type: SearchTopicType, search_scope: SearchScope) -> Optional[str]`**: Find topics by UUID or name
 
 #### Usage Examples
@@ -433,15 +429,18 @@ Logging system with file storage and optional MQTT publishing.
 
 #### Log Levels
 
-- **`debug(message: str)`**: Debug level logging
-- **`info(message: str)`**: Info level logging  
-- **`warning(message: str)`**: Warning level logging
-- **`error(message: str)`**: Error level logging
-- **`critical(message: str)`**: Critical level logging
+- **`debug(message: str, file_only: bool = False)`**: Debug level logging
+- **`info(message: str, file_only: bool = False)`**: Info level logging  
+- **`warning(message: str, file_only: bool = False)`**: Warning level logging
+- **`error(message: str, file_only: bool = False)`**: Error level logging
+- **`critical(message: str, file_only: bool = False)`**: Critical level logging
+
+The `file_only` parameter allows logging to file without publishing to MQTT.
 
 #### Methods
 
 - **`get_full_log() -> list`**: Retrieve complete log history from file
+- **`iter_log()`**: Iterator for log entries from file
 - **`reset_log()`**: Clear all log entries
 
 #### Usage Examples
