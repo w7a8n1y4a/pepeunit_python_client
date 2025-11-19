@@ -8,7 +8,7 @@ version = "0.10.0"
 authors = [
   { name="Ivan Serebrennikov", email="admin@silberworks.com" },
 ]
-description = "Cross-platform library for working with Pepeunit Unit Storage (Windows, Linux, macOS)"
+description = "Client Framework for Pepeunit"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -45,10 +45,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client"
-Issues = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/issues"
-Repository = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client"
-Documentation = "https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/wikis"
+Homepage = "https://pepeunit.com/"
+Issues = "https://github.com/w7a8n1y4a/pepeunit_python_client/issues"
+Repository = "https://github.com/w7a8n1y4a/pepeunit_python_client"
+Documentation = "https://pepeunit.com/libraries/python.html"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pepeunit_client"]

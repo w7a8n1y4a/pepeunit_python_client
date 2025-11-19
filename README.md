@@ -1,4 +1,8 @@
-# PepeUnit Python Client
+# Client Framework for Pepeunit
+
+<div align="center">
+    <img align="center" src="https://pepeunit.com/pepeunit-og.jpg"  width="640" height="320">
+</div>
 
 A cross-platform Python library for integrating with the PepeUnit IoT platform. This library provides MQTT and REST client functionality for managing device communications, configurations, and state management.
 
