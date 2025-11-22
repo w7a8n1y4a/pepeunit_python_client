@@ -93,12 +93,7 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         headers = self._get_auth_headers()
         
         params = [
-            ('visibility_level', 'Public'),
-            ('visibility_level', 'Internal'),
-            ('visibility_level', 'Private'),
             ('order_by_create_date', 'desc'),
-            ('type', 'Output'),
-            ('type', 'Input'),
             ('output_uuid', uuid),
             ('limit', str(limit)),
             ('offset', str(offset)),
@@ -118,14 +113,9 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         
         params = [
             ('is_include_output_unit_nodes', 'true'),
-            ('visibility_level', 'Public'),
-            ('visibility_level', 'Internal'),
-            ('visibility_level', 'Private'),
             ('order_by_unit_name', 'asc'),
             ('order_by_create_date', 'desc'),
             ('order_by_last_update', 'desc'),
-            ('unit_node_type', 'Output'),
-            ('unit_node_type', 'Input'),
             ('limit', str(limit)),
             ('offset', str(offset)),
         ]

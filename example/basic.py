@@ -36,17 +36,6 @@ def handle_input_messages(client: PepeunitClient, msg):
                 value = msg.payload
                 try:
                     value = int(value)
-                    
-                    # check work set to storage
-                    if value < 10:
-                        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
-                        client.logger.info(f"Success set state")
-                    
-                    # check work get from storage
-                    if value > 10 and value < 20:
-                        state = client.rest_client.get_state_storage()
-                        client.logger.info(f"Success get state: {state}")
-
                     client.logger.debug(f"Get from input/pepeunit: {value}", file_only=True)
 
                 except ValueError:
@@ -77,19 +66,18 @@ def handle_output_messages(client: PepeunitClient):
         inc += 1
 
 
-def main():
-    # Initialize the PepeUnit client
-    client = PepeunitClient(
-        env_file_path="env.json",
-        schema_file_path="schema.json",
-        log_file_path="log.json",
-        enable_mqtt=True,
-        enable_rest=True,
-        cycle_speed=1.0,  # 1 second cycle
-        restart_mode=RestartMode.RESTART_EXEC
-    )
-    
-    # Example: Query unit nodes by output topic
+def test_set_get_storage(client: PepeunitClient):
+    try:
+        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
+        client.logger.info(f"Success set state")
+        
+        state = client.rest_client.get_state_storage()
+        client.logger.info(f"Success get state: {state}")
+    except Exception as e:
+        client.logger.error(f"Test set get storage failed: {e}")
+
+
+def test_get_units(client: PepeunitClient):
     try:
         output_topic_urls = client.schema.output_topic.get('output/pepeunit', [])
         if output_topic_urls:
@@ -111,6 +99,24 @@ def main():
                     client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
     except Exception as e:
         client.logger.warning(f"REST query example failed: {e}")
+
+def main():
+    # Initialize the PepeUnit client
+    client = PepeunitClient(
+        env_file_path="env.json",
+        schema_file_path="schema.json",
+        log_file_path="log.json",
+        enable_mqtt=True,
+        enable_rest=True,
+        cycle_speed=1.0,  # 1 second cycle
+        restart_mode=RestartMode.RESTART_EXEC
+    )
+    
+    # Test work pepeunit storage
+    test_set_get_storage(client)
+
+    # Test get edged units by output topic
+    test_get_units(client)
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
