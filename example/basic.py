@@ -89,6 +89,29 @@ def main():
         restart_mode=RestartMode.RESTART_EXEC
     )
     
+    # Example: Query unit nodes by output topic
+    try:
+        output_topic_urls = client.schema.output_topic.get('output/pepeunit', [])
+        if output_topic_urls:
+            topic_url = output_topic_urls[0]
+            client.logger.info(f"Querying input unit nodes for topic: {topic_url}")
+            
+            unit_nodes_response = client.rest_client.get_input_by_output(topic_url)
+            client.logger.info(f"Found {unit_nodes_response.get('count', 0)} unit nodes")
+            
+            # Extract UUIDs from response
+            unit_node_uuids = [node['uuid'] for node in unit_nodes_response.get('unit_nodes', [])]
+            
+            if unit_node_uuids:
+                # Query units by node UUIDs
+                units_response = client.rest_client.get_units_by_nodes(unit_node_uuids)
+                client.logger.info(f"Found {units_response.get('count', 0)} units")
+                
+                for unit in units_response.get('units', []):
+                    client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
+    except Exception as e:
+        client.logger.warning(f"REST query example failed: {e}")
+    
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
 

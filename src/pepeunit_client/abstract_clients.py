@@ -130,6 +130,36 @@ class AbstractPepeunitRestClient(ABC):
         """
         pass
     
+    @abstractmethod
+    def get_input_by_output(self, topic_url: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """
+        Get unit nodes filtered by output UUID extracted from topic URL.
+        
+        Args:
+            topic_url: Full topic URL (e.g., 'output/uuid/pepeunit')
+            limit: Maximum number of results to return (default: 100)
+            offset: Number of results to skip (default: 0)
+            
+        Returns:
+            Unit nodes response with count and unit_nodes array
+        """
+        pass
+    
+    @abstractmethod
+    def get_units_by_nodes(self, unit_node_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """
+        Get units filtered by unit node UUIDs.
+        
+        Args:
+            unit_node_uuids: List of unit node UUIDs to filter by
+            limit: Maximum number of results to return (default: 100)
+            offset: Number of results to skip (default: 0)
+            
+        Returns:
+            Units response with count and units array
+        """
+        pass
+    
     def _get_auth_headers(self) -> Dict[str, str]:
         """
         Get authentication headers for API requests.

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, List, TYPE_CHECKING
 
 from .file_manager import FileManager
 from .abstract_clients import AbstractPepeunitRestClient
@@ -80,3 +80,60 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         response.raise_for_status()
         
         return response.text
+    
+    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        parts = topic.split('/')
+        
+        if len(parts) < 2:
+            raise ValueError(f"Invalid topic URL format: '{topic}'")
+        
+        uuid = parts[1]
+        
+        url = f"{self._get_base_url()}/unit_nodes"
+        headers = self._get_auth_headers()
+        
+        params = [
+            ('visibility_level', 'Public'),
+            ('visibility_level', 'Internal'),
+            ('visibility_level', 'Private'),
+            ('order_by_create_date', 'desc'),
+            ('type', 'Output'),
+            ('type', 'Input'),
+            ('output_uuid', uuid),
+            ('limit', str(limit)),
+            ('offset', str(offset)),
+        ]
+        
+        response = self._httpx_client.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        
+        return response.json()
+    
+    def get_units_by_nodes(self, unit_node_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        if not unit_node_uuids:
+            return {'count': 0, 'units': []}
+        
+        url = f"{self._get_base_url()}/units"
+        headers = self._get_auth_headers()
+        
+        params = [
+            ('is_include_output_unit_nodes', 'true'),
+            ('visibility_level', 'Public'),
+            ('visibility_level', 'Internal'),
+            ('visibility_level', 'Private'),
+            ('order_by_unit_name', 'asc'),
+            ('order_by_create_date', 'desc'),
+            ('order_by_last_update', 'desc'),
+            ('unit_node_type', 'Output'),
+            ('unit_node_type', 'Input'),
+            ('limit', str(limit)),
+            ('offset', str(offset)),
+        ]
+        
+        for uuid in unit_node_uuids:
+            params.append(('unit_node_uuids', uuid))
+        
+        response = self._httpx_client.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        
+        return response.json()
