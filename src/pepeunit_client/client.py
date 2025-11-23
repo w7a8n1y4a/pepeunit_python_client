@@ -84,7 +84,7 @@ class PepeunitClient:
                     'mem_free': memory_info.available,
                     'mem_alloc': memory_info.total - memory_info.available,
                     'freq': freq,
-                    'commit_version': self.settings.COMMIT_VERSION,
+                    'pu_commit_version': self.settings.PU_COMMIT_VERSION,
                 }
             except Exception:
                 pass
@@ -94,7 +94,7 @@ class PepeunitClient:
             'mem_free': 0,
             'mem_alloc': 0,
             'freq': 0,
-            'commit_version': self.settings.COMMIT_VERSION,
+            'pu_commit_version': self.settings.PU_COMMIT_VERSION,
         }
     
     def set_mqtt_input_handler(self, handler: Callable) -> None:
@@ -174,7 +174,7 @@ class PepeunitClient:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
 
-        if not self.skip_version_check and self.settings.COMMIT_VERSION == payload.get('NEW_COMMIT_VERSION'):
+        if not self.skip_version_check and self.settings.PU_COMMIT_VERSION == payload.get('PU_COMMIT_VERSION'):
             self.logger.info('No update needed: current version = target version')
             return
             
@@ -273,7 +273,7 @@ class PepeunitClient:
     def _base_mqtt_output_handler(self) -> None:
         current_time = time.time()
         if BaseOutputTopicType.STATE_PEPEUNIT.value in self.schema.output_base_topic:
-            if current_time - self._last_state_send >= self.settings.STATE_SEND_INTERVAL:
+            if current_time - self._last_state_send >= self.settings.PU_STATE_SEND_INTERVAL:
                 topic = self.schema.output_base_topic[BaseOutputTopicType.STATE_PEPEUNIT.value][0]
                 state_data = self.get_system_state()
                 if self.mqtt_client:

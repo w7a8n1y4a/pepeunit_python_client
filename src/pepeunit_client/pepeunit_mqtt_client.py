@@ -27,7 +27,7 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
             raise ImportError("paho-mqtt is required for MQTT functionality")
             
         client = mqtt_client_paho.Client(mqtt_client_paho.CallbackAPIVersion.VERSION1, self.settings.unit_uuid)
-        client.username_pw_set(self.settings.PEPEUNIT_TOKEN, '')
+        client.username_pw_set(self.settings.PU_AUTH_TOKEN, '')
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         
@@ -37,7 +37,7 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
         if not self._client:
             self._client = self._get_client()
         
-        self._client.connect(self.settings.MQTT_URL, self.settings.MQTT_PORT)
+        self._client.connect(self.settings.PU_MQTT_HOST, self.settings.PU_MQTT_PORT)
         self._client.loop_start()
     
     def disconnect(self) -> None:

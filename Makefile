@@ -21,6 +21,7 @@ install-local:
 
 run-build:
 	@echo "Run build package"
+	rm -rf dist
 	python -m build
 
 upload-pypi:

@@ -7,20 +7,19 @@ from .file_manager import FileManager
 
 class Settings:
     
-    PEPEUNIT_URL: str = ''
-    PEPEUNIT_APP_PREFIX: str = ''
-    PEPEUNIT_API_ACTUAL_PREFIX: str = ''
-    HTTP_TYPE: str = 'https'
-    MQTT_URL: str = ''
-    MQTT_PORT: int = 1883
-    PEPEUNIT_TOKEN: str = ''
-    SYNC_ENCRYPT_KEY: str = ''
-    SECRET_KEY: str = ''
-    COMMIT_VERSION: str = ''
-    PING_INTERVAL: int = 30
-    STATE_SEND_INTERVAL: int = 300
-    MIN_LOG_LEVEL: str = 'Debug'
-    MAX_LOG_LENGTH: int = 64
+    PU_DOMAIN: str = ''
+    PU_HTTP_TYPE: str = 'https'
+    PU_APP_PREFIX: str = ''
+    PU_API_ACTUAL_PREFIX: str = ''
+    PU_MQTT_HOST: str = ''
+    PU_MQTT_PORT: int = 1883
+    PU_MQTT_PING_INTERVAL: int = 30
+    PU_AUTH_TOKEN: str = ''
+    PU_SECRET_KEY: str = ''
+    PU_STATE_SEND_INTERVAL: int = 300
+    PU_MIN_LOG_LEVEL: str = 'Debug'
+    PU_MAX_LOG_LENGTH: int = 64
+    PU_COMMIT_VERSION: str = ''
 
     def __init__(self, env_file_path: Optional[str] = None, **kwargs) -> None:
         self.env_file_path = env_file_path
@@ -33,7 +32,7 @@ class Settings:
 
     @property
     def unit_uuid(self) -> str:
-        token_parts = self.PEPEUNIT_TOKEN.split('.')
+        token_parts = self.PU_AUTH_TOKEN.split('.')
         if len(token_parts) != 3:
             raise ValueError("Invalid JWT token format")
         

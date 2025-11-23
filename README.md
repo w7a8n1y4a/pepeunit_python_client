@@ -306,7 +306,7 @@ Configuration manager for environment variables and settings.
 
 #### Attributes
 
-- **`PEPEUNIT_URL`** (str): PepeUnit server URL
+- **`PU_DOMAIN`** (str): PepeUnit server URL
 - **`PEPEUNIT_APP_PREFIX`** (str): Application prefix path
 - **`PEPEUNIT_API_ACTUAL_PREFIX`** (str): API version prefix
 - **`HTTP_TYPE`** (str): HTTP protocol type (http/https)
