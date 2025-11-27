@@ -22,9 +22,7 @@ pip install pepeunit-client[rest]
 pip install pepeunit-client[all]
 ```
 
-## Examples
-
-### Basic Usage
+## Usage Example
 
 ```python
 """
@@ -40,6 +38,8 @@ It shows how to:
 - Set up message handlers
 - Subscribe to topics
 - Run the main application cycle
+- Storage api
+- Units Nodes api
 """
 
 import time
@@ -65,17 +65,6 @@ def handle_input_messages(client: PepeunitClient, msg):
                 value = msg.payload
                 try:
                     value = int(value)
-                    
-                    # check work set to storage
-                    if value < 10:
-                        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
-                        client.logger.info(f"Success set state")
-                    
-                    # check work get from storage
-                    if value > 10 and value < 20:
-                        state = client.rest_client.get_state_storage()
-                        client.logger.info(f"Success get state: {state}")
-
                     client.logger.debug(f"Get from input/pepeunit: {value}", file_only=True)
 
                 except ValueError:
@@ -106,6 +95,40 @@ def handle_output_messages(client: PepeunitClient):
         inc += 1
 
 
+def test_set_get_storage(client: PepeunitClient):
+    try:
+        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
+        client.logger.info(f"Success set state")
+        
+        state = client.rest_client.get_state_storage()
+        client.logger.info(f"Success get state: {state}")
+    except Exception as e:
+        client.logger.error(f"Test set get storage failed: {e}")
+
+
+def test_get_units(client: PepeunitClient):
+    try:
+        output_topic_urls = client.schema.output_topic.get('output/pepeunit', [])
+        if output_topic_urls:
+            topic_url = output_topic_urls[0]
+            client.logger.info(f"Querying input unit nodes for topic: {topic_url}")
+            
+            unit_nodes_response = client.rest_client.get_input_by_output(topic_url)
+            client.logger.info(f"Found {unit_nodes_response.get('count', 0)} unit nodes")
+            
+            # Extract UUIDs from response
+            unit_node_uuids = [node['uuid'] for node in unit_nodes_response.get('unit_nodes', [])]
+            
+            if unit_node_uuids:
+                # Query units by node UUIDs
+                units_response = client.rest_client.get_units_by_nodes(unit_node_uuids)
+                client.logger.info(f"Found {units_response.get('count', 0)} units")
+                
+                for unit in units_response.get('units', []):
+                    client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
+    except Exception as e:
+        client.logger.warning(f"REST query example failed: {e}")
+
 def main():
     # Initialize the PepeUnit client
     client = PepeunitClient(
@@ -117,6 +140,12 @@ def main():
         cycle_speed=1.0,  # 1 second cycle
         restart_mode=RestartMode.RESTART_EXEC
     )
+    
+    # Test work pepeunit storage
+    test_set_get_storage(client)
+
+    # Test get edged units by output topic
+    test_get_units(client)
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
@@ -136,319 +165,148 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 ```
 
-### Advanced Usage Examples
-
-#### Different Restart Modes
-
-```python
-from pepeunit_client import PepeunitClient, RestartMode
-
-# Production environment - fast restart (default)
-production_client = PepeunitClient(
-    "env.json", "schema.json", "log.json",
-    enable_mqtt=True, enable_rest=True,
-    restart_mode=RestartMode.RESTART_EXEC
-)
-
-# High-reliability system - subprocess restart
-reliable_client = PepeunitClient(
-    "env.json", "schema.json", "log.json", 
-    enable_mqtt=True, enable_rest=True,
-    restart_mode=RestartMode.RESTART_POPEN
-)
-
-# Configuration-only updates (IoT sensors)
-config_client = PepeunitClient(
-    "env.json", "schema.json", "log.json",
-    enable_mqtt=True, enable_rest=True, 
-    restart_mode=RestartMode.ENV_SCHEMA_ONLY
-)
-
-# Development/testing environment
-dev_client = PepeunitClient(
-    "env.json", "schema.json", "log.json",
-    enable_mqtt=True, enable_rest=True,
-    restart_mode=RestartMode.NO_RESTART
-)
-
-```
 
 ## API Reference
 
 ### PepeunitClient
 
-The main client class providing all functionality for PepeUnit integration.
-
-#### Constructor
-
-```python
-PepeunitClient(
-    env_file_path: str,
-    schema_file_path: str,
-    log_file_path: str,
-    enable_mqtt: bool = False,
-    enable_rest: bool = False,
-    mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
-    rest_client: Optional[AbstractPepeunitRestClient] = None,
-    cycle_speed: float = 0.1,
-    restart_mode: RestartMode = RestartMode.RESTART_EXEC,
-    skip_version_check: bool = False
-)
-```
-
-#### Properties
-
-- **`unit_uuid`** (str): Device UUID extracted from JWT token
-- **`settings`** (Settings): Configuration settings manager
-- **`schema`** (SchemaManager): MQTT topic schema manager  
-- **`logger`** (Logger): Logging system with file and MQTT output
-- **`mqtt_client`** (AbstractPepeunitMqttClient): MQTT client instance
-- **`rest_client`** (AbstractPepeunitRestClient): REST client instance
-
-#### Core Methods
-
-- **`get_system_state() -> Dict[str, Any]`**: Get current system status (memory, CPU, etc.)
-- **`update_device_program(archive_path: str)`**: Update device program from tar.gz archive
-- **`run_main_cycle()`**: Start main application loop
-- **`stop_main_cycle()`**: Stop main application loop
-- **`set_output_handler(output_handler: Callable)`**: Set custom output message handler
-- **`set_custom_update_handler(custom_update_handler: Callable)`**: Set custom update handler for device program updates
-
-#### Restart Modes
-
-The `restart_mode` parameter controls how the device behaves when `update_device_program()` is called:
-
-- **`RestartMode.RESTART_POPEN`**: Creates new process via `subprocess.Popen()`, then exits current process
-  - ✅ Full process isolation and reliable restart
-  - ⚠️ Brief gap between old and new process
-  
-- **`RestartMode.RESTART_EXEC`** (default): Replaces current process using `os.execv()`
-  - ✅ Fast restart, preserves process ID
-  - ⚠️ May not release all resources properly
-  
-- **`RestartMode.ENV_SCHEMA_ONLY`**: Updates configuration without restarting
-  - ✅ No downtime, fast configuration updates
-  - ⚠️ Code changes not applied, only env.json and schema.json
-  
-- **`RestartMode.NO_RESTART`**: Only extracts archive, no updates or restarts
-  - ✅ Full control over update process
-  - ⚠️ Manual intervention required
-
-**Usage Examples:**
-
-```python
-from pepeunit_client import PepeunitClient, RestartMode
-
-# Fast restart preserving process ID
-client = PepeunitClient(
-    "env.json", "schema.json", "log.json",
-    restart_mode=RestartMode.RESTART_EXEC
-)
-
-# Configuration-only updates (no downtime)
-client = PepeunitClient(
-    "env.json", "schema.json", "log.json", 
-    restart_mode=RestartMode.ENV_SCHEMA_ONLY
-)
-
-# Manual update control
-client = PepeunitClient(
-    "env.json", "schema.json", "log.json",
-    restart_mode=RestartMode.NO_RESTART
-)
-```
-
-#### MQTT Methods (require `enable_mqtt=True`)
-
-- **`set_mqtt_input_handler(handler: Callable)`**: Set custom input message handler
-- **`subscribe_all_schema_topics()`**: Subscribe to all schema-defined topics
-- **`publish_to_topics(topic_key: str, message: str)`**: Publish message to topic group
-
-#### REST Methods (require `enable_rest=True`)
-
-- **`download_env(file_path: str)`**: Download environment configuration
-- **`download_schema(file_path: str)`**: Download topic schema configuration
-- **`set_state_storage(state: str)`**: Upload state to PepeUnit storage
-- **`get_state_storage() -> str`**: Retrieve state from PepeUnit storage
-
-### PepeunitClient.mqtt_client
-
-MQTT client interface implementing `AbstractPepeunitMqttClient`.
-
-#### Methods
-
-- **`connect()`**: Connect to MQTT broker using configuration
-- **`disconnect()`**: Disconnect from MQTT broker
-- **`subscribe_topics(topics: List[str])`**: Subscribe to specific MQTT topics
-- **`publish(topic: str, message: str)`**: Publish message to specific topic
-- **`set_input_handler(handler: Callable)`**: Set message handler for incoming messages
-
-### PepeunitClient.rest_client
-
-REST client interface implementing `AbstractPepeunitRestClient`.
-
-#### Methods
-
-- **`download_update(file_path: str)`**: Download firmware update
-- **`download_env(file_path: str)`**: Download environment config
-- **`download_schema(file_path: str)`**: Download schema config
-- **`set_state_storage(state: Dict[str, Any])`**: Store device state
-- **`get_state_storage() -> str`**: Retrieve device state
-
-### PepeunitClient.settings
-
-Configuration manager for environment variables and settings.
-
-#### Attributes
-
-- **`PU_DOMAIN`** (str): PepeUnit server URL
-- **`PEPEUNIT_APP_PREFIX`** (str): Application prefix path
-- **`PEPEUNIT_API_ACTUAL_PREFIX`** (str): API version prefix
-- **`HTTP_TYPE`** (str): HTTP protocol type (http/https)
-- **`MQTT_URL`** (str): MQTT broker URL
-- **`MQTT_PORT`** (int): MQTT broker port
-- **`PEPEUNIT_TOKEN`** (str): Authentication JWT token
-- **`SYNC_ENCRYPT_KEY`** (str): Encryption key for synchronization
-- **`SECRET_KEY`** (str): Application secret key
-- **`COMMIT_VERSION`** (str): Current application version
-- **`PING_INTERVAL`** (int): Ping interval in seconds
-- **`STATE_SEND_INTERVAL`** (int): State broadcast interval in seconds
-- **`MIN_LOG_LEVEL`** (str): Minimum logging level (Debug, Info, Warning, Error, Critical)
-- **`MAX_LOG_LENGTH`** (int): Maximum number of log entries to keep in file
-- **`unit_uuid`** (str): Device UUID extracted from JWT token
-
-#### Methods
-
-- **`load_from_file()`**: Reload settings from env.json file
-
-### PepeunitClient.schema
-
-Schema manager for MQTT topic configuration.
-
-#### Properties
-
-- **`input_base_topic`** (Dict[str, List[str]]): Base input topics configuration
-- **`output_base_topic`** (Dict[str, List[str]]): Base output topics configuration  
-- **`input_topic`** (Dict[str, List[str]]): Custom input topics configuration
-- **`output_topic`** (Dict[str, List[str]]): Custom output topics configuration
-
-#### Methods
-
-- **`update_from_file()`**: Reload schema from schema.json file
-- **`find_topic_by_unit_node(search_value: str, search_type: SearchTopicType, search_scope: SearchScope) -> Optional[str]`**: Find topics by UUID or name
-
-#### Usage Examples
-
-```python
-from pepeunit_client.enums import SearchTopicType, SearchScope
-
-# Access topic lists by key
-input_topics = client.schema.input_topic["input/pepeunit"]
-output_topics = client.schema.output_topic["output/pepeunit"]
-
-# Get base system topics
-state_topics = client.schema.output_base_topic["state/pepeunit"]
-
-# Find topic by name or UUID
-topic_name = client.schema.find_topic_by_unit_node(
-    "domain.com/<uuid>/pepeunit", 
-    SearchTopicType.FULL_NAME, 
-    SearchScope.INPUT
-)
-```
-
-### Available Enums
-
-#### RestartMode
-
-Controls device restart behavior during updates:
-
-```python
-from pepeunit_client import RestartMode
-
-RestartMode.RESTART_POPEN    # Subprocess restart
-RestartMode.RESTART_EXEC     # Default: fast restart with os.execv()
-RestartMode.ENV_SCHEMA_ONLY  # Config-only updates
-RestartMode.NO_RESTART       # Manual control
-```
-
-#### SearchTopicType & SearchScope
-
-For topic discovery in schema:
-
-```python
-from pepeunit_client.enums import SearchTopicType, SearchScope
-
-# Search by full topic name or UUID
-SearchTopicType.FULL_NAME
-SearchTopicType.UNIT_NODE_UUID
-
-# Limit search scope
-SearchScope.ALL      # Search both input and output
-SearchScope.INPUT    # Input topics only  
-SearchScope.OUTPUT   # Output topics only
-```
-
-### PepeunitClient.logger
-
-Logging system with file storage and optional MQTT publishing.
-
-#### Log Levels
-
-- **`debug(message: str, file_only: bool = False)`**: Debug level logging
-- **`info(message: str, file_only: bool = False)`**: Info level logging  
-- **`warning(message: str, file_only: bool = False)`**: Warning level logging
-- **`error(message: str, file_only: bool = False)`**: Error level logging
-- **`critical(message: str, file_only: bool = False)`**: Critical level logging
-
-The `file_only` parameter allows logging to file without publishing to MQTT.
-
-#### Methods
-
-- **`get_full_log() -> list`**: Retrieve complete log history from file
-- **`iter_log()`**: Iterator for log entries from file
-- **`reset_log()`**: Clear all log entries
-
-#### Usage Examples
-
-```python
-# Log messages at different levels
-client.logger.info("Device started successfully")
-client.logger.warning("Low battery detected")
-client.logger.error("Sensor connection failed")
-
-# Get complete log history
-log_history = client.logger.get_full_log()
-```
-
-## Error Handling
-
-The library uses standard Python exceptions and does not suppress errors. Key exception types:
-
-- **`ValueError`**: Invalid configuration or parameter values
-- **`RuntimeError`**: Feature not enabled (e.g., REST/MQTT not available)
-- **`ImportError`**: Missing optional dependencies (paho-mqtt, httpx)
-
-## Dependencies
-
-### Core Dependencies
-- `psutil>=5.8.0` (system monitoring, optional on emscripten)
-
-### Optional Dependencies  
-- `paho-mqtt>=1.6.0` (MQTT functionality)
-- `httpx>=0.24.0` (REST functionality)
-
-## License
-
-GNU Affero General Public License v3 (AGPL-3.0-or-later)
-
-## Links
-
-- [Homepage](https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client)
-- [Issues](https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/issues)
-- [Documentation](https://git.pepemoss.com/pepe/pepeunit/libs/pepeunit_python_client/-/wikis)
+Main client class for interacting with the PepeUnit platform.
+
+| Method | Description |
+|--------|-------------|
+| `get_system_state()` | Returns system state information (memory, CPU frequency, timestamp, version) |
+| `set_mqtt_input_handler(handler)` | Sets a custom handler for incoming MQTT messages |
+| `download_env(file_path)` | Downloads environment configuration from the server |
+| `download_schema(file_path)` | Downloads schema configuration from the server |
+| `set_state_storage(state)` | Saves state data to the server storage |
+| `get_state_storage()` | Retrieves state data from the server storage |
+| `update_device_program(archive_path)` | Extracts and applies update archive to the device |
+| `subscribe_all_schema_topics()` | Subscribes to all input topics defined in schema |
+| `publish_to_topics(topic_key, message)` | Publishes message to topics by topic key |
+| `run_main_cycle()` | Runs the main application cycle (blocking) |
+| `set_output_handler(output_handler)` | Sets a custom handler for output operations |
+| `set_custom_update_handler(custom_update_handler)` | Sets a custom handler for update operations |
+| `stop_main_cycle()` | Stops the running main cycle |
+
+### Logger
+
+Logging functionality with file and MQTT output support.
+
+| Method | Description |
+|--------|-------------|
+| `debug(message, file_only=False)` | Logs a debug-level message |
+| `info(message, file_only=False)` | Logs an info-level message |
+| `warning(message, file_only=False)` | Logs a warning-level message |
+| `error(message, file_only=False)` | Logs an error-level message |
+| `critical(message, file_only=False)` | Logs a critical-level message |
+| `get_full_log()` | Returns all log entries as a list |
+| `iter_log()` | Returns an iterator over log entries |
+| `reset_log()` | Clears all log entries |
+
+### SchemaManager
+
+Manages schema data and topic lookups.
+
+| Method | Description |
+|--------|-------------|
+| `update_from_file()` | Reloads schema data from file |
+| `find_topic_by_unit_node(search_value, search_type, search_scope)` | Finds topic name by unit node UUID or full name |
+
+**Properties:**
+
+| Property | Description |
+|----------|-------------|
+| `input_base_topic` | Returns dictionary of base input topics |
+| `output_base_topic` | Returns dictionary of base output topics |
+| `input_topic` | Returns dictionary of input topics |
+| `output_topic` | Returns dictionary of output topics |
+
+### Settings
+
+Configuration management for PepeUnit client.
+
+| Method | Description |
+|--------|-------------|
+| `load_from_file()` | Loads settings from the environment file |
+
+**Properties:**
+
+| Property | Description |
+|----------|-------------|
+| `unit_uuid` | Extracts and returns unit UUID from auth token |
+
+### FileManager
+
+Static utility class for file operations.
+
+| Method | Description |
+|--------|-------------|
+| `read_json(file_path)` | Reads and parses JSON file |
+| `write_json(file_path, data, indent=4)` | Writes data to JSON file |
+| `copy_file(source_path, destination_path)` | Copies a file from source to destination |
+| `file_exists(file_path)` | Checks if file exists |
+| `create_directory(directory_path)` | Creates directory (with parents if needed) |
+| `extract_tar_gz(archive_path, extract_path)` | Extracts tar.gz archive |
+| `extract_pepeunit_archive(file_path, extract_path)` | Extracts PepeUnit-specific compressed archive |
+| `copy_directory_contents(source_path, destination_path)` | Copies all contents from source to destination directory |
+| `remove_directory(directory_path)` | Removes directory and all its contents |
+| `append_ndjson_with_limit(file_path, item, max_lines)` | Appends item to NDJSON file with line limit |
+| `iter_ndjson(file_path)` | Returns iterator over NDJSON file entries |
+| `trim_ndjson(file_path, max_lines)` | Trims NDJSON file to maximum number of lines |
+
+### PepeunitMqttClient
+
+MQTT client implementation for PepeUnit.
+
+| Method | Description |
+|--------|-------------|
+| `connect()` | Connects to MQTT broker and starts message loop |
+| `disconnect()` | Disconnects from MQTT broker and stops message loop |
+| `set_input_handler(handler)` | Sets handler function for incoming MQTT messages |
+| `subscribe_topics(topics)` | Subscribes to a list of MQTT topics |
+| `publish(topic, message)` | Publishes message to specified MQTT topic |
+
+### PepeunitRestClient
+
+REST API client for PepeUnit server.
+
+| Method | Description |
+|--------|-------------|
+| `download_update(file_path)` | Downloads firmware update archive |
+| `download_env(file_path)` | Downloads environment configuration file |
+| `download_schema(file_path)` | Downloads schema configuration file |
+| `set_state_storage(state)` | Saves state to server storage |
+| `get_state_storage()` | Retrieves state from server storage |
+| `get_input_by_output(topic, limit=100, offset=0)` | Gets input unit nodes connected to output topic |
+| `get_units_by_nodes(unit_node_uuids, limit=100, offset=0)` | Gets units by their node UUIDs |
+
+### Enums
+
+| Entity | Key | Description |
+|--------|-----|-------------|
+| `LogLevel` | `DEBUG` | Debug level logging |
+| `LogLevel` | `INFO` | Information level logging |
+| `LogLevel` | `WARNING` | Warning level logging |
+| `LogLevel` | `ERROR` | Error level logging |
+| `LogLevel` | `CRITICAL` | Critical level logging |
+| `SearchTopicType` | `UNIT_NODE_UUID` | Search by unit node UUID |
+| `SearchTopicType` | `FULL_NAME` | Search by full topic name |
+| `SearchScope` | `ALL` | Search in all topics |
+| `SearchScope` | `INPUT` | Search only in input topics |
+| `SearchScope` | `OUTPUT` | Search only in output topics |
+| `DestinationTopicType` | `INPUT_BASE_TOPIC` | Base input topic type |
+| `DestinationTopicType` | `OUTPUT_BASE_TOPIC` | Base output topic type |
+| `DestinationTopicType` | `INPUT_TOPIC` | Regular input topic type |
+| `DestinationTopicType` | `OUTPUT_TOPIC` | Regular output topic type |
+| `BaseInputTopicType` | `UPDATE_PEPEUNIT` | Update command topic |
+| `BaseInputTopicType` | `ENV_UPDATE_PEPEUNIT` | Environment update command topic |
+| `BaseInputTopicType` | `SCHEMA_UPDATE_PEPEUNIT` | Schema update command topic |
+| `BaseInputTopicType` | `LOG_SYNC_PEPEUNIT` | Log synchronization command topic |
+| `BaseOutputTopicType` | `LOG_PEPEUNIT` | Log output topic |
+| `BaseOutputTopicType` | `STATE_PEPEUNIT` | State output topic |
+| `RestartMode` | `RESTART_POPEN` | Restart using subprocess.Popen |
+| `RestartMode` | `RESTART_EXEC` | Restart using os.execv (replaces process) |
+| `RestartMode` | `ENV_SCHEMA_ONLY` | Update only env and schema without restart |
+| `RestartMode` | `NO_RESTART` | Extract archive without restart or updates |

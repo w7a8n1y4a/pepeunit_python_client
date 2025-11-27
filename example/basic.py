@@ -11,6 +11,8 @@ It shows how to:
 - Set up message handlers
 - Subscribe to topics
 - Run the main application cycle
+- Storage api
+- Units Nodes api
 """
 
 import time
