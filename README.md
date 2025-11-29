@@ -40,10 +40,11 @@ It shows how to:
 - Run the main application cycle
 - Storage api
 - Units Nodes api
+- Cipher api
 """
 
 import time
-from pepeunit_client import PepeunitClient, RestartMode
+from pepeunit_client import PepeunitClient, RestartMode, AesGcmCipher
 from pepeunit_client.enums import SearchTopicType, SearchScope
 
 # Global variable to track last message send time
@@ -129,6 +130,19 @@ def test_get_units(client: PepeunitClient):
     except Exception as e:
         client.logger.warning(f"REST query example failed: {e}")
 
+
+def test_cipher(client: PepeunitClient):
+    try:
+        aes_cipher = AesGcmCipher()
+        text = "pepeunit cipher test"
+        enc = aes_cipher.aes_gcm_encode(text, client.settings.PU_ENCRYPT_KEY)
+        client.logger.info(f"Cipher data {enc}")
+        dec = aes_cipher.aes_gcm_decode(enc, client.settings.PU_ENCRYPT_KEY)
+        client.logger.info(f"Decoded data: {dec}")
+    except Exception as e:
+        client.logger.error("Cipher test error: {}".format(e))
+
+
 def main():
     # Initialize the PepeUnit client
     client = PepeunitClient(
@@ -146,6 +160,9 @@ def main():
 
     # Test get edged units by output topic
     test_get_units(client)
+    
+    # Test AES-GCM cipher
+    test_cipher(client)
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
@@ -281,6 +298,15 @@ REST API client for PepeUnit server.
 | `get_state_storage()` | Retrieves state from server storage |
 | `get_input_by_output(topic, limit=100, offset=0)` | Gets input unit nodes connected to output topic |
 | `get_units_by_nodes(unit_node_uuids, limit=100, offset=0)` | Gets units by their node UUIDs |
+
+### AesGcmCipher
+
+The key can be 16, 24, or 32 bits long.
+
+Method | Description
+--- | ---
+`aes_gcm_encode(data: str, key: str) -> str` | Encrypts text and returns `base64(nonce).base64(cipher)`.
+`aes_gcm_decode(data: str, key: str) -> str` | Decrypts encoded string back to plaintext.
 
 ### Enums
 

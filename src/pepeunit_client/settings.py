@@ -16,6 +16,7 @@ class Settings:
     PU_MQTT_PING_INTERVAL: int = 30
     PU_AUTH_TOKEN: str = ''
     PU_SECRET_KEY: str = ''
+    PU_ENCRYPT_KEY: str = ''
     PU_STATE_SEND_INTERVAL: int = 300
     PU_MIN_LOG_LEVEL: str = 'Debug'
     PU_MAX_LOG_LENGTH: int = 64

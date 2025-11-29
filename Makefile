@@ -16,7 +16,7 @@ install-local:
 	python -m venv .venv
 	.venv/bin/pip install --upgrade pip
 	.venv/bin/pip install dist/*.whl
-	.venv/bin/pip install httpx paho-mqtt
+	.venv/bin/pip install httpx paho-mqtt cryptography
 	@echo "Done! Activate with: source .venv/bin/activate.fish"
 
 run-build:
