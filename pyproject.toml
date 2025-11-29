@@ -48,7 +48,7 @@ all = [
 Homepage = "https://pepeunit.com/"
 Issues = "https://github.com/w7a8n1y4a/pepeunit_python_client/issues"
 Repository = "https://github.com/w7a8n1y4a/pepeunit_python_client"
-Documentation = "https://pepeunit.com/libraries/python.html"
+Documentation = "https://pepeunit.com/developer/libraries/python.html"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pepeunit_client"]
