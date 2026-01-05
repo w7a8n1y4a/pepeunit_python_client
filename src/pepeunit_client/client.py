@@ -34,7 +34,7 @@ class PepeunitClient:
         rest_client: Optional[AbstractPepeunitRestClient] = None,
         cycle_speed: float = 0.1,
         restart_mode: RestartMode = RestartMode.RESTART_EXEC,
-        skip_version_check=False
+        ff_version_check_enable=True
     ):
         self.env_file_path = env_file_path
         self.schema_file_path = schema_file_path
@@ -43,7 +43,7 @@ class PepeunitClient:
         self.enable_rest = enable_rest
         self.cycle_speed = cycle_speed
         self.restart_mode = restart_mode
-        self.skip_version_check = skip_version_check
+        self.ff_version_check_enable = ff_version_check_enable
         
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
@@ -174,7 +174,7 @@ class PepeunitClient:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
 
-        if not self.skip_version_check and self.settings.PU_COMMIT_VERSION == payload.get('PU_COMMIT_VERSION'):
+        if self.ff_version_check_enable and self.settings.PU_COMMIT_VERSION == payload.get('PU_COMMIT_VERSION'):
             self.logger.info('No update needed: current version = target version')
             return
             
