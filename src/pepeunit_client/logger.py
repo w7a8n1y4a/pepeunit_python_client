@@ -12,13 +12,19 @@ if TYPE_CHECKING:
 
 
 class Logger:
-    def __init__(self, log_file_path: str, mqtt_client: Optional['AbstractPepeunitMqttClient'] = None, 
-                 schema_manager: Optional['SchemaManager'] = None,
-                 settings: Optional['Settings'] = None):
+    def __init__(
+        self,
+        log_file_path: str,
+        mqtt_client: Optional['AbstractPepeunitMqttClient'] = None, 
+        schema_manager: Optional['SchemaManager'] = None,
+        settings: Optional['Settings'] = None,
+        ff_console_log_enable: bool = True
+    ):
         self.log_file_path = log_file_path
         self.mqtt_client = mqtt_client
         self.schema_manager = schema_manager
         self.settings = settings
+        self.ff_console_log_enable = ff_console_log_enable
     
     def _string_to_log_level(self, level_str: str) -> LogLevel:
         level_mapping = {
@@ -46,6 +52,9 @@ class Logger:
             'text': message,
             'create_datetime': self._get_current_datetime()
         }
+        
+        if self.ff_console_log_enable:
+            print(log_entry)
         
         FileManager.append_ndjson_with_limit(self.log_file_path, log_entry, self.settings.PU_MAX_LOG_LENGTH)
         

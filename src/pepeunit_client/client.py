@@ -34,7 +34,8 @@ class PepeunitClient:
         rest_client: Optional[AbstractPepeunitRestClient] = None,
         cycle_speed: float = 0.1,
         restart_mode: RestartMode = RestartMode.RESTART_EXEC,
-        ff_version_check_enable=True
+        ff_version_check_enable=True,
+        ff_console_log_enable=True
     ):
         self.env_file_path = env_file_path
         self.schema_file_path = schema_file_path
@@ -44,10 +45,11 @@ class PepeunitClient:
         self.cycle_speed = cycle_speed
         self.restart_mode = restart_mode
         self.ff_version_check_enable = ff_version_check_enable
+        self.ff_console_log_enable = ff_console_log_enable
         
         self.settings = Settings(env_file_path)
         self.schema = SchemaManager(schema_file_path)
-        self.logger = Logger(log_file_path, None, self.schema, self.settings)
+        self.logger = Logger(log_file_path, None, self.schema, self.settings, self.ff_console_log_enable)
 
         self.mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
         self.rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
