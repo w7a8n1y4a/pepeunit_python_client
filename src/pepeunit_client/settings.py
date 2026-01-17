@@ -13,7 +13,8 @@ class Settings:
     PU_API_ACTUAL_PREFIX: str = ''
     PU_MQTT_HOST: str = ''
     PU_MQTT_PORT: int = 1883
-    PU_MQTT_PING_INTERVAL: int = 30
+    PU_MQTT_PING_INTERVAL: int = 20
+    PU_MQTT_KEEPALIVE: int = 60
     PU_AUTH_TOKEN: str = ''
     PU_SECRET_KEY: str = ''
     PU_ENCRYPT_KEY: str = ''
