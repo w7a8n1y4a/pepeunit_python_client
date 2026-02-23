@@ -2,7 +2,7 @@
 PepeunitClient - Мультиплатформенная библиотека для работы с Pepeunit Unit Storage
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 from .client import PepeunitClient
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient

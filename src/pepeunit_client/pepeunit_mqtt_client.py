@@ -49,6 +49,15 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
     def _on_connect(self, client, userdata, flags, rc) -> None:
         if rc == 0:
             self.logger.info("Connected to MQTT Broker")
+            topics = []
+            for topic_list in self.schema_manager.input_base_topic.values():
+                topics.extend(topic_list)
+            for topic_list in self.schema_manager.input_topic.values():
+                topics.extend(topic_list)
+            if topics:
+                for topic in topics:
+                    client.subscribe(topic)
+                self.logger.info(f'Resubscribed to {len(topics)} topics')
         else:
             self.logger.error(f"Error to connect to MQTT, return code {rc}", file_only=True)
     
