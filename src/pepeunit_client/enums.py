@@ -42,6 +42,7 @@ class BaseInputTopicType(Enum):
     ENV_UPDATE_PEPEUNIT = 'env_update/pepeunit'
     SCHEMA_UPDATE_PEPEUNIT = 'schema_update/pepeunit'
     LOG_SYNC_PEPEUNIT = 'log_sync/pepeunit'
+    RESET_PEPEUNIT = 'reset/pepeunit'
 
 
 class BaseOutputTopicType(Enum):

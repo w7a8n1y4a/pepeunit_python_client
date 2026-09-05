@@ -127,6 +127,8 @@ class PepeunitClient:
                         self._handle_update(msg)
                     elif topic_key == BaseInputTopicType.LOG_SYNC_PEPEUNIT.value:
                         self._handle_log_sync()
+                    elif topic_key == BaseInputTopicType.RESET_PEPEUNIT.value:
+                        self._handle_reset()
                     break
         except Exception as e:
             self.logger.error(f"Error in base MQTT input handler: {str(e)}")
@@ -234,6 +236,25 @@ class PepeunitClient:
             self.subscribe_all_schema_topics()
         
         self.logger.info('Environment and schema updated successfully')
+
+    def _handle_reset(self) -> None:
+        self.logger.info('Reset command received, restarting program')
+        self._restart_program()
+
+    def _restart_program(self) -> None:
+        if self.restart_mode == RestartMode.RESTART_POPEN:
+            self.stop_main_cycle()
+
+            self.logger.info('Run new main cycle in other process')
+            subprocess.Popen([sys.executable] + sys.argv)
+
+            self.logger.info('I`ll Be Back - stop this process')
+            sys.exit(0)
+
+        self.stop_main_cycle()
+
+        self.logger.info('I`ll Be Back - replacing current process')
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _handle_log_sync(self) -> None:
         topic = self.schema.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
