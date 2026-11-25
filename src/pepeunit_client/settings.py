@@ -25,6 +25,8 @@ class Settings:
 
     def __init__(self, env_file_path: Optional[str] = None, **kwargs) -> None:
         self.env_file_path = env_file_path
+        self._env_keys = set()
+        self._settings_overrides = kwargs
         
         if env_file_path:
             self.load_from_file()
@@ -39,9 +41,9 @@ class Settings:
             raise ValueError("Invalid JWT token format")
         
         payload = token_parts[1]
-        payload += '=' * (4 - len(payload) % 4)
+        payload += '=' * (-len(payload) % 4)
         
-        decoded_payload = base64.b64decode(payload)
+        decoded_payload = base64.urlsafe_b64decode(payload)
         payload_data = json.loads(decoded_payload)
         
         return payload_data['uuid']
@@ -50,6 +52,12 @@ class Settings:
         if not self.env_file_path or not FileManager.file_exists(self.env_file_path):
             return
         
-        env_data = FileManager.read_json(self.env_file_path)
+        env_data = FileManager.read_env(self.env_file_path)
+        for key in self._env_keys - env_data.keys():
+            if key in self._settings_overrides:
+                setattr(self, key, self._settings_overrides[key])
+            else:
+                self.__dict__.pop(key, None)
+        self._env_keys = set(env_data)
         for key, value in env_data.items():
             setattr(self, key, value)

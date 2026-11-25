@@ -1,28 +1,24 @@
 import json
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Callable, Optional, TYPE_CHECKING
 import datetime
 
-from .enums import LogLevel, BaseOutputTopicType
+from .enums import LogLevel
 from .file_manager import FileManager
 
 if TYPE_CHECKING:
-    from .schema_manager import SchemaManager
     from .settings import Settings
-    from .abstract_clients import AbstractPepeunitMqttClient
 
 
 class Logger:
     def __init__(
         self,
         log_file_path: str,
-        mqtt_client: Optional['AbstractPepeunitMqttClient'] = None, 
-        schema_manager: Optional['SchemaManager'] = None,
         settings: Optional['Settings'] = None,
-        ff_console_log_enable: bool = True
+        ff_console_log_enable: bool = True,
+        publish_log: Optional[Callable[[str], Any]] = None,
     ):
         self.log_file_path = log_file_path
-        self.mqtt_client = mqtt_client
-        self.schema_manager = schema_manager
+        self.publish_log = publish_log
         self.settings = settings
         self.ff_console_log_enable = ff_console_log_enable
     
@@ -58,13 +54,12 @@ class Logger:
         
         FileManager.append_ndjson_with_limit(self.log_file_path, log_entry, self.settings.PU_MAX_LOG_LENGTH)
         
-        if not file_only and self.mqtt_client and BaseOutputTopicType.LOG_PEPEUNIT.value in self.schema_manager.output_base_topic:
-            topic = self.schema_manager.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
+        if not file_only and self.publish_log is not None:
             try:
-                self.mqtt_client.publish(topic, json.dumps(log_entry))
+                self.publish_log(json.dumps([log_entry]))
             except Exception:
                 pass
-    
+
     def _get_current_datetime(self) -> str:
         return datetime.datetime.now(datetime.timezone.utc).isoformat()
     

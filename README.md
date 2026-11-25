@@ -30,7 +30,8 @@ Basic PepeUnit Client Example
 
 To use this example, simply create a Pepeunit Unit based on the repository https://git.pepemoss.com/pepe/pepeunit/units/universal_test_unit on any instance.
 
-The resulting schema.json and env.json files should be added to the example directory.
+Copy `schema.json` and `.env` from the device firmware archive into the example directory.
+Keep `.env` private because it contains device credentials.
 
 This example demonstrates basic usage of the PepeUnit client with both MQTT and REST functionality.
 It shows how to:
@@ -62,11 +63,11 @@ def handle_input_messages(client: PepeunitClient, msg):
                 msg.topic, SearchTopicType.FULL_NAME, SearchScope.INPUT
             )
 
-            if topic_name == "input/pepeunit":
+            if topic_name == "input_counter":
                 value = msg.payload
                 try:
                     value = int(value)
-                    client.logger.debug(f"Get from input/pepeunit: {value}", file_only=True)
+                    client.logger.debug(f"Get from input_counter: {value}", file_only=True)
 
                 except ValueError:
                     client.logger.error(f"Value is not a number: {value}")
@@ -86,10 +87,10 @@ def handle_output_messages(client: PepeunitClient):
         # message example
         message = inc
         
-        client.logger.debug(f"Send to output/pepeunit: {message}", file_only=True)
+        client.logger.debug(f"Send to output_counter: {message}", file_only=True)
 
         # Try to publish to sensor output topics
-        client.publish_to_topics("output/pepeunit", message)
+        client.publish_to_topics("output_counter", message)
         
         # Update the last message send time
         last_output_send_time = current_time
@@ -109,7 +110,7 @@ def test_set_get_storage(client: PepeunitClient):
 
 def test_get_units(client: PepeunitClient):
     try:
-        output_topic_urls = client.schema.output_topic.get('output/pepeunit', [])
+        output_topic_urls = client.schema.output_topic.get('output_counter', [])
         if output_topic_urls:
             topic_url = output_topic_urls[0]
             client.logger.info(f"Querying input unit nodes for topic: {topic_url}")
@@ -146,7 +147,7 @@ def test_cipher(client: PepeunitClient):
 def main():
     # Initialize the PepeUnit client
     client = PepeunitClient(
-        env_file_path="env.json",
+        env_file_path=".env",
         schema_file_path="schema.json",
         log_file_path="log.json",
         enable_mqtt=True,
@@ -195,7 +196,7 @@ Main client class for interacting with the PepeUnit platform.
 |--------|-------------|
 | `get_system_state()` | Returns system state information (memory, CPU frequency, timestamp, version) |
 | `set_mqtt_input_handler(handler)` | Sets a custom handler for incoming MQTT messages |
-| `download_env(file_path)` | Downloads environment configuration from the server |
+| `download_env(file_path)` | Downloads the device `.env` and reloads the configured settings file |
 | `download_schema(file_path)` | Downloads schema configuration from the server |
 | `set_state_storage(state)` | Saves state data to the server storage |
 | `get_state_storage()` | Retrieves state data from the server storage |
@@ -260,6 +261,7 @@ Static utility class for file operations.
 
 | Method | Description |
 |--------|-------------|
+| `read_env(file_path)` | Reads the device `.env` and decodes settings into their original types |
 | `read_json(file_path)` | Reads and parses JSON file |
 | `write_json(file_path, data, indent=4)` | Writes data to JSON file |
 | `copy_file(source_path, destination_path)` | Copies a file from source to destination |
@@ -292,7 +294,7 @@ REST API client for PepeUnit server.
 | Method | Description |
 |--------|-------------|
 | `download_update(file_path)` | Downloads firmware update archive |
-| `download_env(file_path)` | Downloads environment configuration file |
+| `download_env(file_path)` | Downloads the device `.env` from `GET /units/env/{uuid}` |
 | `download_schema(file_path)` | Downloads schema configuration file |
 | `set_state_storage(state)` | Saves state to server storage |
 | `get_state_storage()` | Retrieves state from server storage |

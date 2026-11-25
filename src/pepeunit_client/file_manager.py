@@ -1,10 +1,12 @@
 import json
 import os
+import re
 import shutil
 import tarfile
+import tempfile
 import zlib
-from typing import Any, Dict, List
 from pathlib import Path
+from typing import Any, Dict, List
 
 
 class FileManager:
@@ -13,6 +15,44 @@ class FileManager:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     
+    @staticmethod
+    def parse_env(content: str) -> Dict[str, Any]:
+        values: Dict[str, Any] = {}
+        for line_number, line in enumerate(content.split("\n"), start=1):
+            if not line or line.startswith("#"):
+                continue
+            name, separator, value = line.partition("=")
+            if not separator or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                raise ValueError(f"Invalid environment variable on line {line_number}")
+            if name in values:
+                raise ValueError(f"Duplicate environment variable on line {line_number}")
+            try:
+                values[name] = FileManager.parse_env_value(value)
+            except ValueError:
+                raise ValueError(f"Invalid environment value on line {line_number}") from None
+        return values
+
+    @staticmethod
+    def parse_env_value(value: str) -> Any:
+        if value.startswith('"'):
+            return json.loads(value)
+        if value.startswith("'") and value.endswith("'"):
+            content = re.sub(r"\\(['\\])", r"\1", value[1:-1])
+            decoded = json.loads(content)
+            if not isinstance(decoded, (dict, list)):
+                raise ValueError("Expected a JSON object or array")
+            return decoded
+        if not re.fullmatch(r"[\w@%+:,./=-]*", value):
+            raise ValueError("Invalid unquoted environment value")
+        try:
+            return json.loads(value)
+        except ValueError:
+            return value
+
+    @staticmethod
+    def read_env(file_path: str) -> Dict[str, Any]:
+        return FileManager.parse_env(Path(file_path).read_text(encoding="utf-8"))
+
     @staticmethod
     def write_json(file_path: str, data: Dict[str, Any], indent: int = 4) -> None:
         directory = os.path.dirname(file_path)
@@ -40,25 +80,25 @@ class FileManager:
     
     @staticmethod
     def extract_pepeunit_archive(file_path: str, extract_path: str) -> None:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as source, tempfile.TemporaryFile() as archive:
             producer = zlib.decompressobj(wbits=9)
-            tar_data = producer.decompress(f.read()) + producer.flush()
-            tar_filepath = f'{os.path.dirname(file_path)}/temp_update.tar'
-            with open(tar_filepath, 'wb') as tar_file:
-                tar_file.write(tar_data)
-            try:
-                # Use tarfile directly with filter for security (Python 3.12+)
-                with tarfile.open(tar_filepath, 'r') as tar:
-                    # Check if filter parameter is supported
-                    try:
-                        tar.extractall(extract_path, filter='data')
-                    except TypeError:
-                        # Fallback for older Python versions
-                        tar.extractall(extract_path)
-            finally:
-                if os.path.exists(tar_filepath):
-                    os.remove(tar_filepath)
-    
+            for chunk in iter(lambda: source.read(65536), b""):
+                archive.write(producer.decompress(chunk))
+            archive.write(producer.flush())
+            if not producer.eof:
+                raise ValueError("Incomplete firmware archive")
+            archive.seek(0)
+            with tarfile.open(fileobj=archive, mode="r:") as tar:
+                if hasattr(tarfile, "data_filter"):
+                    tar.extractall(extract_path, filter="data")
+                else:
+                    root = Path(extract_path).resolve()
+                    for member in tar.getmembers():
+                        (root / member.name).resolve().relative_to(root)
+                        if not (member.isfile() or member.isdir()):
+                            raise ValueError("Unsupported firmware archive entry")
+                    tar.extractall(extract_path)
+
     @staticmethod
     def copy_directory_contents(source_path: str, destination_path: str) -> None:
         if not os.path.exists(source_path):

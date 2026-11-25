@@ -3,7 +3,7 @@ from typing import Optional, Callable, List, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .settings import Settings
-    from .schema_manager import SchemaManager
+    from .io_topics import IOTopics
     from .logger import Logger
 
 
@@ -15,9 +15,8 @@ class AbstractPepeunitMqttClient(ABC):
     that integrate with the Pepeunit ecosystem.
     """
     
-    def __init__(self, settings: 'Settings', schema_manager: 'SchemaManager', logger: 'Logger'):
+    def __init__(self, settings: 'Settings', logger: 'Logger'):
         self.settings = settings
-        self.schema_manager = schema_manager
         self.logger = logger
     
     @abstractmethod
@@ -31,26 +30,15 @@ class AbstractPepeunitMqttClient(ABC):
         pass
     
     @abstractmethod
-    def subscribe_topics(self, topics: List[str]) -> None:
-        """
-        Subscribe to specific MQTT topics.
-        
-        Args:
-            topics: List of topic strings to subscribe to
-        """
+    def set_subscriptions(self, topics: Dict[str, int]) -> None:
+        """Apply the current topic-to-QoS mapping for all inputs."""
         pass
-    
+
     @abstractmethod
-    def publish(self, topic: str, message: str) -> None:
-        """
-        Publish message to specific topic.
-        
-        Args:
-            topic: MQTT topic to publish to
-            message: Message content to publish
-        """
+    def publish(self, topic: str, message: Any, qos: int = 0) -> Any:
+        """Publish the encoded payload using the specified QoS."""
         pass
-    
+
     @abstractmethod
     def set_input_handler(self, handler: Callable) -> None:
         """
@@ -87,25 +75,18 @@ class AbstractPepeunitRestClient(ABC):
     @abstractmethod
     def download_env(self, file_path: str) -> None:
         """
-        Download env.json configuration.
+        Download the device .env configuration.
         
         Args:
-            unit_uuid: UUID of the unit to download config for
-            file_path: Local path where to save the env.json file
+            file_path: Local path for the downloaded configuration
         """
         pass
     
     @abstractmethod
-    def download_schema(self, file_path: str) -> None:
-        """
-        Download schema.json configuration.
-        
-        Args:
-            unit_uuid: UUID of the unit to download schema for
-            file_path: Local path where to save the schema.json file
-        """
+    def get_io_topics(self) -> "IOTopics":
+        """Fetch and decode the unit's io_topics.yml."""
         pass
-    
+
     @abstractmethod
     def set_state_storage(self, state: Dict[str, Any]) -> None:
         """
@@ -131,35 +112,15 @@ class AbstractPepeunitRestClient(ABC):
         pass
     
     @abstractmethod
-    def get_input_by_output(self, topic_url: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
-        """
-        Get unit nodes filtered by output UUID extracted from topic URL.
-        
-        Args:
-            topic_url: Full topic URL (e.g., 'output/uuid/pepeunit')
-            limit: Maximum number of results to return (default: 100)
-            offset: Number of results to skip (default: 0)
-            
-        Returns:
-            Unit nodes response with count and unit_nodes array
-        """
+    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """Return the linked inputs in the response's unit_ios list."""
         pass
-    
+
     @abstractmethod
-    def get_units_by_nodes(self, unit_node_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
-        """
-        Get units filtered by unit node UUIDs.
-        
-        Args:
-            unit_node_uuids: List of unit node UUIDs to filter by
-            limit: Maximum number of results to return (default: 100)
-            offset: Number of results to skip (default: 0)
-            
-        Returns:
-            Units response with count and units array
-        """
+    def get_units_by_ios(self, unit_io_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+        """Return units filtered by UnitIO UUIDs."""
         pass
-    
+
     def _get_auth_headers(self) -> Dict[str, str]:
         """
         Get authentication headers for API requests.

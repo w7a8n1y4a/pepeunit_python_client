@@ -3,7 +3,7 @@ Basic PepeUnit Client Example
 
 To use this example, simply create a Pepeunit Unit based on the repository https://git.pepemoss.com/pepe/pepeunit/units/universal_test_unit on any instance.
 
-The resulting schema.json and env.json files should be added to the example directory.
+Copy .env from the firmware archive into the example directory. The SDK fetches IO topics when it connects.
 
 This example demonstrates basic usage of the PepeUnit client with both MQTT and REST functionality.
 It shows how to:
@@ -12,40 +12,26 @@ It shows how to:
 - Subscribe to topics
 - Run the main application cycle
 - Storage api
-- Units Nodes api
+- UnitIO API
 - Cipher api
 """
 
 import time
 from pepeunit_client import PepeunitClient, RestartMode, AesGcmCipher
-from pepeunit_client.enums import SearchTopicType, SearchScope
 
 # Global variable to track last message send time
 last_output_send_time = 0
 inc = 0
 
 def handle_input_messages(client: PepeunitClient, msg):
+    if client.io_topics.input_name(msg.topic) != "input_counter":
+        return
     try:
-        topic_parts = msg.topic.split("/")
-
-        # topic with format domain.com/+/pepeunit
-        if len(topic_parts) == 3:
-            # find topic name in schema, by topic with struct domain.com/+/pepeunit or domain.com/+
-            topic_name = client.schema.find_topic_by_unit_node(
-                msg.topic, SearchTopicType.FULL_NAME, SearchScope.INPUT
-            )
-
-            if topic_name == "input/pepeunit":
-                value = msg.payload
-                try:
-                    value = int(value)
-                    client.logger.debug(f"Get from input/pepeunit: {value}", file_only=True)
-
-                except ValueError:
-                    client.logger.error(f"Value is not a number: {value}")
-
-    except Exception as e:
-        client.logger.error(f"Input handler error: {e}")
+        value = int(msg.payload)
+    except ValueError:
+        client.logger.error(f"Value is not a number: {msg.payload!r}")
+        return
+    client.logger.debug(f"Get from input_counter: {value}", file_only=True)
 
 
 def handle_output_messages(client: PepeunitClient):
@@ -59,10 +45,10 @@ def handle_output_messages(client: PepeunitClient):
         # message example
         message = inc
         
-        client.logger.debug(f"Send to output/pepeunit: {message}", file_only=True)
+        client.logger.debug(f"Send to output_counter: {message}", file_only=True)
 
         # Try to publish to sensor output topics
-        client.publish_to_topics("output/pepeunit", message)
+        client.publish_to_topics("output_counter", message)
         
         # Update the last message send time
         last_output_send_time = current_time
@@ -82,24 +68,13 @@ def test_set_get_storage(client: PepeunitClient):
 
 def test_get_units(client: PepeunitClient):
     try:
-        output_topic_urls = client.schema.output_topic.get('output/pepeunit', [])
-        if output_topic_urls:
-            topic_url = output_topic_urls[0]
-            client.logger.info(f"Querying input unit nodes for topic: {topic_url}")
-            
-            unit_nodes_response = client.rest_client.get_input_by_output(topic_url)
-            client.logger.info(f"Found {unit_nodes_response.get('count', 0)} unit nodes")
-            
-            # Extract UUIDs from response
-            unit_node_uuids = [node['uuid'] for node in unit_nodes_response.get('unit_nodes', [])]
-            
-            if unit_node_uuids:
-                # Query units by node UUIDs
-                units_response = client.rest_client.get_units_by_nodes(unit_node_uuids)
-                client.logger.info(f"Found {units_response.get('count', 0)} units")
-                
-                for unit in units_response.get('units', []):
-                    client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
+        output = client.io_topics.output.get("output_counter")
+        if output is None:
+            return
+        response = client.rest_client.get_input_by_output(output.topic)
+        input_uuids = [io["uuid"] for io in response["unit_ios"]]
+        for unit in client.rest_client.get_units_by_ios(input_uuids)["units"]:
+            client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
     except Exception as e:
         client.logger.warning(f"REST query example failed: {e}")
 
@@ -119,8 +94,7 @@ def test_cipher(client: PepeunitClient):
 def main():
     # Initialize the PepeUnit client
     client = PepeunitClient(
-        env_file_path="env.json",
-        schema_file_path="schema.json",
+        env_file_path=".env",
         log_file_path="log.json",
         enable_mqtt=True,
         enable_rest=True,
@@ -131,20 +105,14 @@ def main():
     # Test work pepeunit storage
     test_set_get_storage(client)
 
-    # Test get edged units by output topic
-    test_get_units(client)
-    
     # Test AES-GCM cipher
     test_cipher(client)
     
     # Set up message handlers
     client.set_mqtt_input_handler(handle_input_messages)
 
-    # Connect to mqtt broker, 
-    client.mqtt_client.connect()
-
-    # Subscribe to all input topics from schema, be sure to after connecting with the broker
-    client.subscribe_all_schema_topics()
+    client.connect()
+    test_get_units(client)
 
     # Set output handler
     client.set_output_handler(handle_output_messages)

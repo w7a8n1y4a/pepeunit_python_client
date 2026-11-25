@@ -4,6 +4,7 @@ import tempfile
 import time
 import sys
 import subprocess
+from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 
 # Import for mocking in tests
@@ -15,7 +16,7 @@ except ImportError:
 from .settings import Settings
 from .file_manager import FileManager
 from .logger import Logger
-from .schema_manager import SchemaManager
+from .io_topics import IOTopics
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient
 from .pepeunit_mqtt_client import PepeunitMqttClient
 from .pepeunit_rest_client import PepeunitRestClient
@@ -26,7 +27,6 @@ class PepeunitClient:
     def __init__(
         self,
         env_file_path: str,
-        schema_file_path: str,
         log_file_path: str,
         enable_mqtt: bool = False,
         enable_rest: bool = False,
@@ -38,34 +38,32 @@ class PepeunitClient:
         ff_console_log_enable=True
     ):
         self.env_file_path = env_file_path
-        self.schema_file_path = schema_file_path
         self.log_file_path = log_file_path
         self.enable_mqtt = enable_mqtt
-        self.enable_rest = enable_rest
+        self.enable_rest = enable_rest or enable_mqtt
         self.cycle_speed = cycle_speed
         self.restart_mode = restart_mode
         self.ff_version_check_enable = ff_version_check_enable
         self.ff_console_log_enable = ff_console_log_enable
         
         self.settings = Settings(env_file_path)
-        self.schema = SchemaManager(schema_file_path)
-        self.logger = Logger(log_file_path, None, self.schema, self.settings, self.ff_console_log_enable)
+        self.io_topics = IOTopics()
+        self.logger = Logger(log_file_path, self.settings, self.ff_console_log_enable)
+        self.mqtt_client = (mqtt_client or self._get_default_mqtt_client()) if enable_mqtt else None
+        self.rest_client = (rest_client or self._get_default_rest_client()) if self.enable_rest else None
 
-        self.mqtt_client = (mqtt_client if mqtt_client else self._get_default_mqtt_client()) if enable_mqtt else None
-        self.rest_client = (rest_client if rest_client else self._get_default_rest_client()) if enable_rest else None
-        
-        if self.mqtt_client:
-            self.logger.mqtt_client = self.mqtt_client
-        
         self.mqtt_input_handler: Optional[Callable] = None
         self.mqtt_output_handler: Optional[Callable] = None
         self.custom_update_handler: Optional[Callable] = None
 
         self._running = False
         self._last_state_send = 0
+        if self.mqtt_client is not None:
+            self.mqtt_client.set_input_handler(self._dispatch_mqtt_input)
+            self.logger.publish_log = lambda message: self.publish_to_topics(BaseOutputTopicType.LOG.value, message)
         
     def _get_default_mqtt_client(self) -> Optional[AbstractPepeunitMqttClient]:
-        return PepeunitMqttClient(self.settings, self.schema, self.logger)
+        return PepeunitMqttClient(self.settings, self.logger)
     
     def _get_default_rest_client(self) -> Optional[AbstractPepeunitRestClient]:
         return PepeunitRestClient(self.settings)
@@ -77,7 +75,7 @@ class PepeunitClient:
                 
                 try:
                     cpu_freq = psutil.cpu_freq()
-                    freq = cpu_freq.current if cpu_freq else 0
+                    freq = cpu_freq.current * 1_000_000 if cpu_freq else 0
                 except (AttributeError, OSError):
                     freq = 0
                 
@@ -99,62 +97,53 @@ class PepeunitClient:
             'pu_commit_version': self.settings.PU_COMMIT_VERSION,
         }
     
-    def set_mqtt_input_handler(self, handler: Callable) -> None:
-
+    def connect(self) -> None:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
+        self.refresh_io_topics()
+        self.mqtt_client.connect()
 
+    def set_mqtt_input_handler(self, handler: Callable) -> None:
+        if not self.mqtt_client:
+            raise RuntimeError("MQTT client is not available")
         self.mqtt_input_handler = handler
 
-        def combined_handler(msg):
-            self._base_mqtt_input_func(msg)
-            if self.mqtt_input_handler:
-                self.mqtt_input_handler(self, msg)
-
-        self.mqtt_client.set_input_handler(combined_handler)
+    def _dispatch_mqtt_input(self, msg) -> None:
+        self._base_mqtt_input_func(msg)
+        if self.mqtt_input_handler:
+            self.mqtt_input_handler(self, msg)
 
     def _base_mqtt_input_func(self, msg) -> None:
+        name = self.io_topics.input_name(msg.topic)
         try:
-            for topic_key in self.schema.input_base_topic:
-                if msg.topic in self.schema.input_base_topic[topic_key]:
-                    self.logger.info(f'Get base MQTT command: {topic_key}')
+            if name == BaseInputTopicType.ENV_UPDATE.value:
+                self.download_env(self.env_file_path)
+            elif name == BaseInputTopicType.SCHEMA_UPDATE.value:
+                self.refresh_io_topics()
+            elif name == BaseInputTopicType.UPDATE.value:
+                self._handle_update(msg)
+            elif name == BaseInputTopicType.LOG_SYNC.value:
+                self._handle_log_sync()
+            elif name == BaseInputTopicType.RESET.value:
+                self._handle_reset()
+        except Exception as error:
+            self.logger.error(f"Error in standard MQTT input handler: {error}")
 
-                    if topic_key == BaseInputTopicType.ENV_UPDATE_PEPEUNIT.value:
-                        self.download_env(self.env_file_path)
-                    elif topic_key == BaseInputTopicType.SCHEMA_UPDATE_PEPEUNIT.value:
-                        self.download_schema(self.schema_file_path)
-                    elif topic_key == BaseInputTopicType.UPDATE_PEPEUNIT.value:
-                        self._handle_update(msg)
-                    elif topic_key == BaseInputTopicType.LOG_SYNC_PEPEUNIT.value:
-                        self._handle_log_sync()
-                    elif topic_key == BaseInputTopicType.RESET_PEPEUNIT.value:
-                        self._handle_reset()
-                    break
-        except Exception as e:
-            self.logger.error(f"Error in base MQTT input handler: {str(e)}")
-    
     def download_env(self, file_path: str) -> None:
         if not self.rest_client:
             raise RuntimeError("REST client is not available")
-
-        if not self.mqtt_client:
-            raise RuntimeError("MQTT client is not available")
-
         self.rest_client.download_env(file_path)
-        self.settings.load_from_file()
-        self.logger.info('Success update env')
-    
-    def download_schema(self, file_path: str) -> None:
+        if Path(file_path).resolve() == Path(self.env_file_path).resolve():
+            self.settings.load_from_file()
+        self.logger.info("Updated environment settings")
+
+    def refresh_io_topics(self) -> None:
         if not self.rest_client:
             raise RuntimeError("REST client is not available")
-
-        if not self.mqtt_client:
-            raise RuntimeError("MQTT client is not available")
-
-        self.rest_client.download_schema(file_path)
-        self.schema.update_from_file()
-        self.subscribe_all_schema_topics()
-        self.logger.info('Success update schema')
+        topics = self.rest_client.get_io_topics()
+        if self.mqtt_client:
+            self.mqtt_client.set_subscriptions({io.topic: io.qos for io in topics.input.values()})
+        self.io_topics = topics
 
     def set_state_storage(self, state: str) -> None:
         if not self.rest_client:
@@ -175,26 +164,27 @@ class PepeunitClient:
         if not self.rest_client:
             raise RuntimeError("REST client is not available")
 
-        if not self.mqtt_client:
-            raise RuntimeError("MQTT client is not available")
-
         if self.ff_version_check_enable and self.settings.PU_COMMIT_VERSION == payload.get('PU_COMMIT_VERSION'):
             self.logger.info('No update needed: current version = target version')
             return
             
         if self.custom_update_handler:
             self.custom_update_handler(self, payload)
-        else:
-            temp_dir = tempfile.gettempdir()
-            archive_path = os.path.join(temp_dir, f"update_{self.settings.unit_uuid}.tar.gz")
-            
-            self.rest_client.download_update(archive_path)
-            self.logger.info('Success download update archive', file_only=True)
+            return
 
+        if "COMPILED_FIRMWARE_LINK" in payload:
+            raise RuntimeError(
+                "Compiled firmware updates require set_custom_update_handler()"
+            )
+
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as archive:
+            archive_path = archive.name
+        try:
+            self.rest_client.download_update(archive_path)
             self.update_device_program(archive_path)
-            self.logger.info('Success extract archive', file_only=True)
-            
-            self.logger.info("Full update cycle completed successfully")
+        finally:
+            Path(archive_path).unlink(missing_ok=True)
+        self.logger.info("Firmware update completed")
     
     def update_device_program(self, archive_path: str) -> None:
         
@@ -203,6 +193,11 @@ class PepeunitClient:
             FileManager.extract_tar_gz(archive_path, temp_extract_dir)
             self.logger.info(f"Extracted archive to {temp_extract_dir}")
             
+            archive_env = Path(temp_extract_dir) / ".env"
+            env_name = Path(self.env_file_path).name
+            FileManager.read_env(str(archive_env))
+            if env_name != archive_env.name:
+                archive_env.replace(archive_env.with_name(env_name))
             FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
             self.logger.info(f"Copied directory contents from {temp_extract_dir} to {unit_directory}")
         
@@ -222,20 +217,16 @@ class PepeunitClient:
             
             self.logger.info('I`ll Be Back - replacing current process')
             os.execv(sys.executable, [sys.executable] + sys.argv)
-        elif self.restart_mode == RestartMode.ENV_SCHEMA_ONLY:
-            self.logger.info('Updating env and schema only, without restart')
-            self._update_env_schema_only()
+        elif self.restart_mode == RestartMode.ENV_TOPICS_ONLY:
+            self.logger.info('Reloading environment and IO topics')
+            self._reload_after_update()
         elif self.restart_mode == RestartMode.NO_RESTART:
             self.logger.info('Archive extracted, no restart or updates performed')
     
-    def _update_env_schema_only(self) -> None:
+    def _reload_after_update(self) -> None:
         self.settings.load_from_file()
-        self.schema.update_from_file()
-        
-        if self.enable_mqtt and self.mqtt_client:
-            self.subscribe_all_schema_topics()
-        
-        self.logger.info('Environment and schema updated successfully')
+        self.refresh_io_topics()
+        self._last_state_send = 0
 
     def _handle_reset(self) -> None:
         self.logger.info('Reset command received, restarting program')
@@ -257,53 +248,26 @@ class PepeunitClient:
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _handle_log_sync(self) -> None:
-        topic = self.schema.output_base_topic[BaseOutputTopicType.LOG_PEPEUNIT.value][0]
-        log_data = self.logger.get_full_log()
-        if self.mqtt_client:
-            self.mqtt_client.publish(topic, json.dumps(log_data))
-        self.logger.info("Log sync completed")
+        entries = self.logger.get_full_log()
+        if entries:
+            self.publish_to_topics(BaseOutputTopicType.LOG.value, json.dumps(entries))
 
-    def subscribe_all_schema_topics(self) -> None:
+    def publish_to_topics(self, topic_key: str, message: Any) -> Any:
         if not self.mqtt_client:
             raise RuntimeError("MQTT client is not available")
-            
-        topics = []
-        
-        for topic_list in self.schema.input_base_topic.values():
-            topics.extend(topic_list)
-            
-        for topic_list in self.schema.input_topic.values():
-            topics.extend(topic_list)
+        output = self.io_topics.output.get(topic_key)
+        if output is not None:
+            return self.mqtt_client.publish(output.topic, message, qos=output.qos)
+        return None
 
-        self.logger.info(f'Need a subscription for {len(topic_list)} topics')
-            
-        self.mqtt_client.subscribe_topics(topics)
-
-    def publish_to_topics(self, topic_key: str, message: str) -> None:
-        if not self.mqtt_client:
-            raise RuntimeError("MQTT client is not available")
-            
-        topics = []
-        
-        if topic_key in self.schema.output_topic:
-            topics.extend(self.schema.output_topic[topic_key])
-        elif topic_key in self.schema.output_base_topic:
-            topics.extend(self.schema.output_base_topic[topic_key])
-            
-        for topic in topics:
-            self.mqtt_client.publish(topic, message)
-    
     def _base_mqtt_output_handler(self) -> None:
         current_time = time.time()
-        if BaseOutputTopicType.STATE_PEPEUNIT.value in self.schema.output_base_topic:
+        name = BaseOutputTopicType.STATE.value
+        if self.mqtt_client and name in self.io_topics.output:
             if current_time - self._last_state_send >= self.settings.PU_STATE_SEND_INTERVAL:
-                topic = self.schema.output_base_topic[BaseOutputTopicType.STATE_PEPEUNIT.value][0]
-                state_data = self.get_system_state()
-                if self.mqtt_client:
-                    self.mqtt_client.publish(topic, json.dumps(state_data))
+                self.publish_to_topics(name, json.dumps(self.get_system_state()))
+                self._last_state_send = current_time
 
-                    self._last_state_send = current_time
-    
     def run_main_cycle(self) -> None:
         self._running = True
         try:
