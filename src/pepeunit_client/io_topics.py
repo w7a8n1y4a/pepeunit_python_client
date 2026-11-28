@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 from uuid import UUID
 
 import yaml
@@ -32,8 +31,8 @@ class IOTopic:
 
 @dataclass(frozen=True)
 class IOTopics:
-    input: Dict[str, IOTopic] = field(default_factory=dict)
-    output: Dict[str, IOTopic] = field(default_factory=dict)
+    input: dict[str, IOTopic] = field(default_factory=dict)
+    output: dict[str, IOTopic] = field(default_factory=dict)
 
     @classmethod
     def from_yaml(cls, content: bytes) -> "IOTopics":
@@ -49,7 +48,7 @@ class IOTopics:
         )
 
     @staticmethod
-    def read_topics(document: dict, direction: str) -> Dict[str, IOTopic]:
+    def read_topics(document: dict, direction: str) -> dict[str, IOTopic]:
         entries = document.get(direction)
         if not isinstance(entries, dict):
             raise ValueError(f"io_topics.yml must contain a {direction} mapping")
@@ -64,7 +63,7 @@ class IOTopics:
             topics[name] = IOTopic(entry["topic"], entry.get("qos", 0))
         return topics
 
-    def input_name(self, topic: str) -> Optional[str]:
+    def input_name(self, topic: str) -> str | None:
         return next(
             (name for name, io in self.input.items() if io.topic == topic), None
         )

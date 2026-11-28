@@ -6,11 +6,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 class AesGcmCipher:
     
     def aes_gcm_encode(self, data: str, key: str) -> str:
-        """
-        data: any python str
-        key: (base64 str) 16, 24, 32 bytes sync encrypt key
-        return: (base64 str - nonce).(base64 str - encrypted data).(base64 str - tag)
-        """
+        """Encrypt text using a Base64-encoded AES key and return the encoded nonce and ciphertext."""
 
         key = base64.b64decode(key.encode())
         nonce = os.urandom(12)  # 96-bit nonce for AES-GCM
@@ -21,11 +17,7 @@ class AesGcmCipher:
         return f"{base64.b64encode(nonce).decode()}.{base64.b64encode(cipher).decode()}"
     
     def aes_gcm_decode(self, data: str, key: str) -> str:
-        """
-        data: (base64 str - nonce).(base64 str - encrypted data)
-        key: (base64 str) 16, 24, 32 bytes sync encrypt key
-        return: decode python str
-        """
+        """Decrypt the encoded nonce and ciphertext using a Base64-encoded AES key."""
 
         key = base64.b64decode(key.encode())
         nonce, cipher = data.split(".")

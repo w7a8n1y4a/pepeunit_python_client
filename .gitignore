@@ -16,7 +16,5 @@ wheels/
 .venv
 venv
 
-schema.json
-env.json
 .env
-log.json
+log.ndjson

@@ -1,12 +1,10 @@
+from collections.abc import Callable
 from threading import RLock
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any
+
+from paho.mqtt import client as mqtt_client_paho
 
 from .abstract_clients import AbstractPepeunitMqttClient
-
-try:
-    from paho.mqtt import client as mqtt_client_paho
-except ImportError:
-    mqtt_client_paho = None
 
 if TYPE_CHECKING:
     from .logger import Logger
@@ -16,21 +14,17 @@ if TYPE_CHECKING:
 class PepeunitMqttClient(AbstractPepeunitMqttClient):
     def __init__(self, settings: "Settings", logger: "Logger"):
         super().__init__(settings, logger)
-        self._client: Optional[Any] = None
-        self._input_handler: Optional[Callable] = None
-        self._subscriptions: Dict[str, int] = {}
+        self._client: Any = None
+        self._input_handler: Callable | None = None
+        self._subscriptions: dict[str, int] = {}
         self._subscription_lock = RLock()
 
     def _get_client(self) -> Any:
-        if mqtt_client_paho is None:
-            raise ImportError("paho-mqtt is required for MQTT functionality")
-        options = {"client_id": self.settings.unit_uuid}
-        if hasattr(mqtt_client_paho, "CallbackAPIVersion"):
-            options["callback_api_version"] = (
-                mqtt_client_paho.CallbackAPIVersion.VERSION1
-            )
-        client = mqtt_client_paho.Client(**options)
-        client.username_pw_set(self.settings.PU_AUTH_TOKEN, "")
+        client = mqtt_client_paho.Client(
+            mqtt_client_paho.CallbackAPIVersion.VERSION2,
+            client_id=self.settings.unit_uuid,
+        )
+        client.on_pre_connect = self._on_pre_connect
         client.on_connect = self._on_connect
         client.on_message = self._on_message
         return client
@@ -51,9 +45,12 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
             self._client.loop_stop()
             self.logger.info("Disconnected from MQTT broker", file_only=True)
 
-    def _on_connect(self, client, userdata, flags, rc) -> None:
-        if rc != 0:
-            self.logger.error(f"MQTT connection failed: {rc}", file_only=True)
+    def _on_pre_connect(self, client, userdata) -> None:
+        client.username_pw_set(self.settings.PU_AUTH_TOKEN, "")
+
+    def _on_connect(self, client, userdata, flags, reason_code, properties) -> None:
+        if reason_code.is_failure:
+            self.logger.error(f"MQTT connection failed: {reason_code}", file_only=True)
             return
         with self._subscription_lock:
             self._subscribe(client, list(self._subscriptions.items()))
@@ -69,7 +66,7 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
     def set_input_handler(self, handler: Callable) -> None:
         self._input_handler = handler
 
-    def set_subscriptions(self, topics: Dict[str, int]) -> None:
+    def set_subscriptions(self, topics: dict[str, int]) -> None:
         with self._subscription_lock:
             client = self._client
             if client is not None and client.is_connected():
@@ -84,7 +81,10 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
                 removed = list(self._subscriptions.keys() - topics.keys())
                 if removed:
                     rc, _ = client.unsubscribe(removed)
-                    if rc != mqtt_client_paho.MQTT_ERR_SUCCESS:
+                    if rc not in (
+                        mqtt_client_paho.MQTT_ERR_SUCCESS,
+                        mqtt_client_paho.MQTT_ERR_NO_CONN,
+                    ):
                         raise RuntimeError(f"MQTT unsubscribe failed: {rc}")
             self._subscriptions = dict(topics)
 
@@ -92,7 +92,10 @@ class PepeunitMqttClient(AbstractPepeunitMqttClient):
     def _subscribe(client, topics) -> None:
         if topics:
             rc, _ = client.subscribe(topics)
-            if rc != mqtt_client_paho.MQTT_ERR_SUCCESS:
+            if rc not in (
+                mqtt_client_paho.MQTT_ERR_SUCCESS,
+                mqtt_client_paho.MQTT_ERR_NO_CONN,
+            ):
                 raise RuntimeError(f"MQTT subscribe failed: {rc}")
 
     def publish(self, topic: str, message: Any, qos: int = 0) -> Any:

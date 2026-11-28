@@ -5,19 +5,16 @@ import shutil
 import tarfile
 import tempfile
 import zlib
+from collections.abc import Iterator
+from itertools import islice
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 
 class FileManager:
     @staticmethod
-    def read_json(file_path: str) -> Dict[str, Any]:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    
-    @staticmethod
-    def parse_env(content: str) -> Dict[str, Any]:
-        values: Dict[str, Any] = {}
+    def parse_env(content: str) -> dict[str, Any]:
+        values: dict[str, Any] = {}
         for line_number, line in enumerate(content.split("\n"), start=1):
             if not line or line.startswith("#"):
                 continue
@@ -50,34 +47,9 @@ class FileManager:
             return value
 
     @staticmethod
-    def read_env(file_path: str) -> Dict[str, Any]:
+    def read_env(file_path: str | Path) -> dict[str, Any]:
         return FileManager.parse_env(Path(file_path).read_text(encoding="utf-8"))
 
-    @staticmethod
-    def write_json(file_path: str, data: Dict[str, Any], indent: int = 4) -> None:
-        directory = os.path.dirname(file_path)
-        
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=indent, ensure_ascii=False)
-    
-    @staticmethod
-    def copy_file(source_path: str, destination_path: str) -> None:
-        shutil.copy2(source_path, destination_path)
-    
-    @staticmethod
-    def file_exists(file_path: str) -> bool:
-        return os.path.exists(file_path)
-    
-    @staticmethod
-    def create_directory(directory_path: str) -> None:
-        os.makedirs(directory_path, exist_ok=True)
-    
-    @staticmethod
-    def extract_tar_gz(archive_path: str, extract_path: str) -> None:
-        FileManager.extract_pepeunit_archive(archive_path, extract_path)
-    
     @staticmethod
     def extract_pepeunit_archive(file_path: str, extract_path: str) -> None:
         with open(file_path, "rb") as source, tempfile.TemporaryFile() as archive:
@@ -89,15 +61,7 @@ class FileManager:
                 raise ValueError("Incomplete firmware archive")
             archive.seek(0)
             with tarfile.open(fileobj=archive, mode="r:") as tar:
-                if hasattr(tarfile, "data_filter"):
-                    tar.extractall(extract_path, filter="data")
-                else:
-                    root = Path(extract_path).resolve()
-                    for member in tar.getmembers():
-                        (root / member.name).resolve().relative_to(root)
-                        if not (member.isfile() or member.isdir()):
-                            raise ValueError("Unsupported firmware archive entry")
-                    tar.extractall(extract_path)
+                tar.extractall(extract_path, filter="data")
 
     @staticmethod
     def copy_directory_contents(source_path: str, destination_path: str) -> None:
@@ -114,86 +78,49 @@ class FileManager:
                 shutil.copytree(source_item, destination_item, dirs_exist_ok=True)
             else:
                 shutil.copy2(source_item, destination_item)
-    
+
     @staticmethod
-    def remove_directory(directory_path: str) -> None:
-        if os.path.exists(directory_path):
-            shutil.rmtree(directory_path)
-    
-    @staticmethod
-    def append_ndjson_with_limit(file_path: str, item: Dict[str, Any], max_lines: int = None) -> None:
-        directory = os.path.dirname(file_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                first_char = f.read(1)
-                if first_char == '[':
-                    try:
-                        f.seek(0)
-                        data = json.load(f)
-                        if isinstance(data, list):
-                            with open(file_path, 'w', encoding='utf-8') as fw:
-                                for it in data:
-                                    json.dump(it, fw, ensure_ascii=False)
-                                    fw.write('\n')
-                    except Exception:
-                        pass
-        
+    def append_ndjson_with_limit(file_path: str, item: dict[str, Any], max_lines: int) -> None:
+        path = Path(file_path)
         try:
-            with open(file_path, 'a', encoding='utf-8') as f:
-                json.dump(item, f, ensure_ascii=False)
-                f.write('\n')
-        except Exception:
-            pass
-        
-        if max_lines is not None and max_lines > 0:
-            FileManager.trim_ndjson(file_path, max_lines)
-    
-    @staticmethod
-    def iter_ndjson(file_path: str):
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        yield json.loads(line)
-                    except Exception:
-                        continue
-        except Exception:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as log:
+                log.write(json.dumps(item, ensure_ascii=False) + "\n")
+            if max_lines > 0:
+                FileManager._trim_ndjson(path, max_lines)
+        except (OSError, UnicodeError):
             return
-    
+
     @staticmethod
-    def trim_ndjson(file_path: str, max_lines: int) -> None:
-        if max_lines <= 0:
-            return
-        
+    def iter_ndjson(file_path: str) -> Iterator[dict[str, Any]]:
         try:
-            total = 0
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for _ in f:
-                    total += 1
-            
-            if total <= max_lines:
-                return
-            
-            to_skip = total - max_lines
-            tmp_path = file_path + '.tmp'
-            
-            with open(file_path, 'r', encoding='utf-8') as src, open(tmp_path, 'w', encoding='utf-8') as dst:
-                for line in src:
-                    if to_skip > 0:
-                        to_skip -= 1
+            with open(file_path, encoding="utf-8") as log:
+                for line in log:
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
                         continue
-                    dst.write(line)
-            
-            os.replace(tmp_path, file_path)
-        except Exception:
-            if os.path.exists(tmp_path):
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
+                    if isinstance(entry, dict):
+                        yield entry
+        except (OSError, UnicodeDecodeError):
+            return
+
+    @staticmethod
+    def _trim_ndjson(path: Path, max_lines: int) -> None:
+        pending = None
+        try:
+            with path.open(encoding="utf-8") as source:
+                to_skip = sum(1 for _ in source) - max_lines
+                if to_skip <= 0:
+                    return
+                source.seek(0)
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", dir=path.parent, delete=False
+                ) as target:
+                    pending = Path(target.name)
+                    target.writelines(islice(source, to_skip, None))
+            shutil.copymode(path, pending)
+            pending.replace(path)
+        finally:
+            if pending is not None:
+                pending.unlink(missing_ok=True)

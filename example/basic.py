@@ -1,124 +1,76 @@
-"""
-Basic PepeUnit Client Example
-
-To use this example, simply create a Pepeunit Unit based on the repository https://git.pepemoss.com/pepe/pepeunit/units/universal_test_unit on any instance.
-
-Copy .env from the firmware archive into the example directory. The SDK fetches IO topics when it connects.
-
-This example demonstrates basic usage of the PepeUnit client with both MQTT and REST functionality.
-It shows how to:
-- Initialize the client with configuration files
-- Set up message handlers
-- Subscribe to topics
-- Run the main application cycle
-- Storage api
-- UnitIO API
-- Cipher api
-"""
+"""Run a Pepeunit Unit using the .env from its firmware archive."""
 
 import time
-from pepeunit_client import PepeunitClient, RestartMode, AesGcmCipher
+from pathlib import Path
 
-# Global variable to track last message send time
-last_output_send_time = 0
-inc = 0
+from paho.mqtt.client import MQTTMessage
 
-def handle_input_messages(client: PepeunitClient, msg):
-    if client.io_topics.input_name(msg.topic) != "input_counter":
+from pepeunit_client import AesGcmCipher, PepeunitClient
+
+
+def handle_input(client: PepeunitClient, message: MQTTMessage) -> None:
+    if client.io_topics.input_name(message.topic) != "input_counter":
         return
     try:
-        value = int(msg.payload)
+        value = int(message.payload)
     except ValueError:
-        client.logger.error(f"Value is not a number: {msg.payload!r}")
+        client.logger.error(f"Expected an integer from input_counter: {message.payload!r}")
         return
-    client.logger.debug(f"Get from input_counter: {value}", file_only=True)
+    client.logger.debug(f"Received input_counter: {value}", file_only=True)
 
 
-def handle_output_messages(client: PepeunitClient):
-    global last_output_send_time
-    global inc
-
-    current_time = time.time()
-    
-    # Send data every MESSAGE_SEND_INTERVAL seconds, similar to _base_mqtt_output_handler
-    if current_time - last_output_send_time >= client.settings.DELAY_PUB_MSG:
-        # message example
-        message = inc
-        
-        client.logger.debug(f"Send to output_counter: {message}", file_only=True)
-
-        # Try to publish to sensor output topics
-        client.publish_to_topics("output_counter", message)
-        
-        # Update the last message send time
-        last_output_send_time = current_time
-        inc += 1
+def show_linked_units(client: PepeunitClient) -> None:
+    output = client.io_topics.output.get("output_counter")
+    rest = client.rest_client
+    if output is None or rest is None:
+        return
+    inputs = rest.get_input_by_output(output.topic)["unit_ios"]
+    units = rest.get_units_by_ios([item["uuid"] for item in inputs])["units"]
+    for unit in units:
+        client.logger.info(f"Linked Unit {unit['name']} ({unit['uuid']})")
 
 
-def test_set_get_storage(client: PepeunitClient):
-    try:
-        client.rest_client.set_state_storage('This line is saved in Pepeunit Instance')
-        client.logger.info(f"Success set state")
-        
-        state = client.rest_client.get_state_storage()
-        client.logger.info(f"Success get state: {state}")
-    except Exception as e:
-        client.logger.error(f"Test set get storage failed: {e}")
-
-
-def test_get_units(client: PepeunitClient):
-    try:
-        output = client.io_topics.output.get("output_counter")
-        if output is None:
-            return
-        response = client.rest_client.get_input_by_output(output.topic)
-        input_uuids = [io["uuid"] for io in response["unit_ios"]]
-        for unit in client.rest_client.get_units_by_ios(input_uuids)["units"]:
-            client.logger.info(f"Unit: {unit.get('name')} (UUID: {unit.get('uuid')})")
-    except Exception as e:
-        client.logger.warning(f"REST query example failed: {e}")
-
-
-def test_cipher(client: PepeunitClient):
-    try:
-        aes_cipher = AesGcmCipher()
-        text = "pepeunit cipher test"
-        enc = aes_cipher.aes_gcm_encode(text, client.settings.PU_ENCRYPT_KEY)
-        client.logger.info(f"Cipher data {enc}")
-        dec = aes_cipher.aes_gcm_decode(enc, client.settings.PU_ENCRYPT_KEY)
-        client.logger.info(f"Decoded data: {dec}")
-    except Exception as e:
-        client.logger.error("Cipher test error: {}".format(e))
-
-
-def main():
-    # Initialize the PepeUnit client
+def main() -> None:
+    directory = Path(__file__).resolve().parent
     client = PepeunitClient(
-        env_file_path=".env",
-        log_file_path="log.json",
+        env_file_path=str(directory / ".env"),
+        log_file_path=str(directory / "log.ndjson"),
         enable_mqtt=True,
-        enable_rest=True,
-        cycle_speed=1.0,  # 1 second cycle
-        restart_mode=RestartMode.RESTART_EXEC
+        cycle_speed=1.0,
     )
-    
-    # Test work pepeunit storage
-    test_set_get_storage(client)
+    last_sent_at: float | None = None
+    counter = 0
 
-    # Test AES-GCM cipher
-    test_cipher(client)
-    
-    # Set up message handlers
-    client.set_mqtt_input_handler(handle_input_messages)
+    def publish_counter(unit: PepeunitClient) -> None:
+        nonlocal last_sent_at, counter
+        now = time.monotonic()
+        interval = unit.settings.DELAY_PUB_MSG
+        if last_sent_at is not None and now - last_sent_at < interval:
+            return
+        unit.publish_to_topics("output_counter", counter)
+        unit.logger.debug(f"Sent output_counter: {counter}", file_only=True)
+        last_sent_at = now
+        counter += 1
+
+    client.set_mqtt_input_handler(handle_input)
+    client.set_output_handler(publish_counter)
 
     client.connect()
-    test_get_units(client)
+    try:
+        client.set_state_storage("Pepeunit client example")
+        client.logger.info(f"Stored state: {client.get_state_storage()}")
+        show_linked_units(client)
 
-    # Set output handler
-    client.set_output_handler(handle_output_messages)
+        if key := client.settings.PU_ENCRYPT_KEY:
+            cipher = AesGcmCipher()
+            encrypted = cipher.aes_gcm_encode("Pepeunit cipher example", key)
+            decoded = cipher.aes_gcm_decode(encrypted, key)
+            client.logger.info(f"Decoded message: {decoded}")
 
-    # Run the main cycle with set output handler
-    client.run_main_cycle()
+        client.run_main_cycle()
+    finally:
+        if client.mqtt_client is not None:
+            client.mqtt_client.disconnect()
 
 
 if __name__ == "__main__":

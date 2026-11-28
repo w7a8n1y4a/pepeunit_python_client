@@ -1,38 +1,42 @@
-import json
 import base64
+import json
+from pathlib import Path
+from typing import Any
 
-from typing import Optional
 from .file_manager import FileManager
 
 
 class Settings:
-    
-    PU_DOMAIN: str = ''
-    PU_HTTP_TYPE: str = 'https'
-    PU_APP_PREFIX: str = ''
-    PU_API_ACTUAL_PREFIX: str = ''
-    PU_MQTT_HOST: str = ''
-    PU_MQTT_PORT: int = 1883
-    PU_MQTT_PING_INTERVAL: int = 20
-    PU_MQTT_KEEPALIVE: int = 60
-    PU_AUTH_TOKEN: str = ''
-    PU_SECRET_KEY: str = ''
-    PU_ENCRYPT_KEY: str = ''
-    PU_STATE_SEND_INTERVAL: int = 300
-    PU_MIN_LOG_LEVEL: str = 'Debug'
-    PU_MAX_LOG_LENGTH: int = 64
-    PU_COMMIT_VERSION: str = ''
+    DEFAULTS = {
+        "PU_DOMAIN": "",
+        "PU_HTTP_TYPE": "https",
+        "PU_APP_PREFIX": "/pepeunit",
+        "PU_API_ACTUAL_PREFIX": "/api/v1",
+        "PU_MQTT_HOST": "",
+        "PU_MQTT_PORT": 1883,
+        "PU_MQTT_PING_INTERVAL": 20,
+        "PU_MQTT_KEEPALIVE": 60,
+        "PU_AUTH_TOKEN": "",
+        "PU_SECRET_KEY": "",
+        "PU_ENCRYPT_KEY": "",
+        "PU_STATE_SEND_INTERVAL": 60,
+        "PU_MIN_LOG_LEVEL": "Debug",
+        "PU_MAX_LOG_LENGTH": 64,
+        "PU_COMMIT_VERSION": "",
+    }
 
-    def __init__(self, env_file_path: Optional[str] = None, **kwargs) -> None:
-        self.env_file_path = env_file_path
-        self._env_keys = set()
-        self._settings_overrides = kwargs
-        
-        if env_file_path:
-            self.load_from_file()
-        
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+    def __init__(self, env_file_path: str) -> None:
+        self._env_file = Path(env_file_path)
+        self._values: dict[str, Any] = {}
+        self.load_from_file()
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self._values:
+            return self._values[name]
+        try:
+            return self.DEFAULTS[name]
+        except KeyError:
+            raise AttributeError(name) from None
 
     @property
     def unit_uuid(self) -> str:
@@ -49,15 +53,36 @@ class Settings:
         return payload_data['uuid']
     
     def load_from_file(self) -> None:
-        if not self.env_file_path or not FileManager.file_exists(self.env_file_path):
-            return
-        
-        env_data = FileManager.read_env(self.env_file_path)
-        for key in self._env_keys - env_data.keys():
-            if key in self._settings_overrides:
-                setattr(self, key, self._settings_overrides[key])
-            else:
-                self.__dict__.pop(key, None)
-        self._env_keys = set(env_data)
-        for key, value in env_data.items():
-            setattr(self, key, value)
+        if self._env_file.is_file():
+            self._apply_values(FileManager.read_env(self._env_file))
+
+    def apply_env_update(self, downloaded: Path) -> None:
+        content = downloaded.read_text(encoding="utf-8")
+        values = FileManager.parse_env(content)
+        version_key = "PU_COMMIT_VERSION"
+        try:
+            installed_version = FileManager.read_env(self._env_file).get(version_key)
+        except (OSError, ValueError):
+            installed_version = self._values.get(version_key)
+
+        if (
+            isinstance(installed_version, str)
+            and installed_version
+            and values.get(version_key) != installed_version
+        ):
+            prefix = f"{version_key}="
+            lines = [line for line in content.split("\n") if not line.startswith(prefix)]
+            lines.insert(0, prefix + json.dumps(installed_version))
+            downloaded.write_text("\n".join(lines), encoding="utf-8")
+            values[version_key] = installed_version
+
+        downloaded.replace(self._env_file)
+        self._apply_values(values)
+
+    def _apply_values(self, values: dict[str, Any]) -> None:
+        env_names = self._values.keys() | values.keys()
+        self._values = values
+        attributes = vars(self)
+        for name in env_names & attributes.keys():
+            if not name.startswith("_"):
+                del attributes[name]

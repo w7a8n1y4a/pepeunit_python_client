@@ -1,16 +1,12 @@
-import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, Any, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+import httpx
+
+from .abstract_clients import AbstractPepeunitRestClient
 from .file_manager import FileManager
 from .io_topics import IOTopic, IOTopics
-from .abstract_clients import AbstractPepeunitRestClient
-
-try:
-    import httpx
-except ImportError:
-    httpx = None
 
 if TYPE_CHECKING:
     from .settings import Settings
@@ -19,14 +15,8 @@ if TYPE_CHECKING:
 class PepeunitRestClient(AbstractPepeunitRestClient):
     def __init__(self, settings: 'Settings'):
         super().__init__(settings)
-        self._httpx_client = self._get_httpx_client()
-    
-    def _get_httpx_client(self):
-        if httpx is None:
-            raise ImportError("httpx is required for REST functionality")
-        return httpx
-    
-    
+        self._httpx_client = httpx
+
     def download_update(self, file_path: str) -> None:
         wbits = 9
         level = 9
@@ -69,12 +59,11 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         response.raise_for_status()
         return IOTopics.from_yaml(response.content)
 
-    def set_state_storage(self, state: Dict[str, Any]) -> None:
+    def set_state_storage(self, state: str) -> None:
         url = f"{self._get_base_url()}/units/set_state_storage/{self.settings.unit_uuid}"
         headers = self._get_auth_headers()
-        headers['content-type'] = 'application/json'
-        
-        response = self._httpx_client.post(url, headers=headers, data=json.dumps({'state':state}))
+
+        response = self._httpx_client.post(url, headers=headers, json={"state": state})
         response.raise_for_status()
     
     def get_state_storage(self) -> str:
@@ -84,9 +73,12 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         response = self._httpx_client.get(url, headers=headers)
         response.raise_for_status()
         
-        return response.text
+        state = response.json()
+        if not isinstance(state, str):
+            raise TypeError("Expected a JSON string from Pepeunit Unit Storage")
+        return state
     
-    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         output_uuid = IOTopic.uuid_from_topic(topic)
         url = f"{self._get_base_url()}/unit_ios"
         headers = self._get_auth_headers()
@@ -103,7 +95,7 @@ class PepeunitRestClient(AbstractPepeunitRestClient):
         
         return response.json()
     
-    def get_units_by_ios(self, unit_io_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    def get_units_by_ios(self, unit_io_uuids: list[str], limit: int = 100, offset: int = 0) -> dict[str, Any]:
         if not unit_io_uuids:
             return {'count': 0, 'units': []}
         

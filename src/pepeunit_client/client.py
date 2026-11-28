@@ -1,26 +1,31 @@
 import json
 import os
+import sys
 import tempfile
 import time
-import sys
-import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
+from typing import Any
 
-# Import for mocking in tests
 try:
     import psutil
 except ImportError:
     psutil = None
 
-from .settings import Settings
-from .file_manager import FileManager
-from .logger import Logger
-from .io_topics import IOTopics
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient
+from .enums import (
+    BackendTopicCommand,
+    BackendTopicCommandKey,
+    BaseInputTopicType,
+    BaseOutputTopicType,
+    RestartMode,
+)
+from .file_manager import FileManager
+from .io_topics import IOTopics
+from .logger import Logger
 from .pepeunit_mqtt_client import PepeunitMqttClient
 from .pepeunit_rest_client import PepeunitRestClient
-from .enums import BaseInputTopicType, BaseOutputTopicType, RestartMode
+from .settings import Settings
 
 
 class PepeunitClient:
@@ -30,31 +35,31 @@ class PepeunitClient:
         log_file_path: str,
         enable_mqtt: bool = False,
         enable_rest: bool = False,
-        mqtt_client: Optional[AbstractPepeunitMqttClient] = None,
-        rest_client: Optional[AbstractPepeunitRestClient] = None,
+        mqtt_client: AbstractPepeunitMqttClient | None = None,
+        rest_client: AbstractPepeunitRestClient | None = None,
         cycle_speed: float = 0.1,
         restart_mode: RestartMode = RestartMode.RESTART_EXEC,
-        ff_version_check_enable=True,
-        ff_console_log_enable=True
+        ff_version_check_enable: bool = True,
+        ff_console_log_enable: bool = True,
     ):
         self.env_file_path = env_file_path
-        self.log_file_path = log_file_path
-        self.enable_mqtt = enable_mqtt
-        self.enable_rest = enable_rest or enable_mqtt
         self.cycle_speed = cycle_speed
         self.restart_mode = restart_mode
         self.ff_version_check_enable = ff_version_check_enable
-        self.ff_console_log_enable = ff_console_log_enable
-        
+
         self.settings = Settings(env_file_path)
         self.io_topics = IOTopics()
-        self.logger = Logger(log_file_path, self.settings, self.ff_console_log_enable)
-        self.mqtt_client = (mqtt_client or self._get_default_mqtt_client()) if enable_mqtt else None
-        self.rest_client = (rest_client or self._get_default_rest_client()) if self.enable_rest else None
+        self.logger = Logger(log_file_path, self.settings, ff_console_log_enable)
+        self.mqtt_client: AbstractPepeunitMqttClient | None = None
+        self.rest_client: AbstractPepeunitRestClient | None = None
+        if enable_mqtt:
+            self.mqtt_client = mqtt_client or PepeunitMqttClient(self.settings, self.logger)
+        if enable_mqtt or enable_rest:
+            self.rest_client = rest_client or PepeunitRestClient(self.settings)
 
-        self.mqtt_input_handler: Optional[Callable] = None
-        self.mqtt_output_handler: Optional[Callable] = None
-        self.custom_update_handler: Optional[Callable] = None
+        self.mqtt_input_handler: Callable | None = None
+        self.mqtt_output_handler: Callable | None = None
+        self.custom_update_handler: Callable | None = None
 
         self._running = False
         self._last_state_send = 0
@@ -62,13 +67,7 @@ class PepeunitClient:
             self.mqtt_client.set_input_handler(self._dispatch_mqtt_input)
             self.logger.publish_log = lambda message: self.publish_to_topics(BaseOutputTopicType.LOG.value, message)
         
-    def _get_default_mqtt_client(self) -> Optional[AbstractPepeunitMqttClient]:
-        return PepeunitMqttClient(self.settings, self.logger)
-    
-    def _get_default_rest_client(self) -> Optional[AbstractPepeunitRestClient]:
-        return PepeunitRestClient(self.settings)
-    
-    def get_system_state(self) -> Dict[str, Any]:
+    def get_system_state(self) -> dict[str, Any]:
         if psutil is not None:
             try:
                 memory_info = psutil.virtual_memory()
@@ -114,17 +113,41 @@ class PepeunitClient:
             self.mqtt_input_handler(self, msg)
 
     def _base_mqtt_input_func(self, msg) -> None:
-        name = self.io_topics.input_name(msg.topic)
         try:
-            if name == BaseInputTopicType.ENV_UPDATE.value:
+            topic = BaseInputTopicType(self.io_topics.input_name(msg.topic))
+        except ValueError:
+            return
+
+        try:
+            payload = json.loads(msg.payload)
+            if not isinstance(payload, dict):
+                raise TypeError("Expected a JSON object for a base MQTT command")
+
+            command = BackendTopicCommand[topic.name]
+            if payload.get(BackendTopicCommandKey.COMMAND) != command.value:
+                raise ValueError(
+                    f"Expected command {command.value!r} on {topic.value}"
+                )
+
+            allowed_fields = {BackendTopicCommandKey.COMMAND}
+            if command is BackendTopicCommand.UPDATE:
+                allowed_fields.update({
+                    BackendTopicCommandKey.COMMIT_VERSION,
+                    BackendTopicCommandKey.COMPILED_FIRMWARE_LINK,
+                })
+            if unexpected_fields := payload.keys() - allowed_fields:
+                fields = ", ".join(sorted(unexpected_fields))
+                raise ValueError(f"Unexpected fields for {command.value}: {fields}")
+
+            if command is BackendTopicCommand.ENV_UPDATE:
                 self.download_env(self.env_file_path)
-            elif name == BaseInputTopicType.SCHEMA_UPDATE.value:
+            elif command is BackendTopicCommand.SCHEMA_UPDATE:
                 self.refresh_io_topics()
-            elif name == BaseInputTopicType.UPDATE.value:
-                self._handle_update(msg)
-            elif name == BaseInputTopicType.LOG_SYNC.value:
+            elif command is BackendTopicCommand.UPDATE:
+                self._handle_update(payload)
+            elif command is BackendTopicCommand.LOG_SYNC:
                 self._handle_log_sync()
-            elif name == BaseInputTopicType.RESET.value:
+            elif command is BackendTopicCommand.RESET:
                 self._handle_reset()
         except Exception as error:
             self.logger.error(f"Error in standard MQTT input handler: {error}")
@@ -132,9 +155,15 @@ class PepeunitClient:
     def download_env(self, file_path: str) -> None:
         if not self.rest_client:
             raise RuntimeError("REST client is not available")
-        self.rest_client.download_env(file_path)
-        if Path(file_path).resolve() == Path(self.env_file_path).resolve():
-            self.settings.load_from_file()
+        env_path = Path(self.env_file_path)
+        if Path(file_path).resolve() == env_path.resolve():
+            env_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(dir=env_path.parent) as directory:
+                downloaded = Path(directory) / env_path.name
+                self.rest_client.download_env(str(downloaded))
+                self.settings.apply_env_update(downloaded)
+        else:
+            self.rest_client.download_env(file_path)
         self.logger.info("Updated environment settings")
 
     def refresh_io_topics(self) -> None:
@@ -157,14 +186,23 @@ class PepeunitClient:
         
         return self.rest_client.get_state_storage()
 
-    def _handle_update(self, msg) -> None:
-
-        payload = json.loads(msg.payload) if msg.payload else {}
-
+    def _handle_update(self, payload: dict[str, Any]) -> None:
         if not self.rest_client:
             raise RuntimeError("REST client is not available")
 
-        if self.ff_version_check_enable and self.settings.PU_COMMIT_VERSION == payload.get('PU_COMMIT_VERSION'):
+        target_version = payload.get(BackendTopicCommandKey.COMMIT_VERSION)
+        if not isinstance(target_version, str) or not target_version:
+            raise ValueError("Update requires a non-empty pu_commit_version")
+
+        link_key = BackendTopicCommandKey.COMPILED_FIRMWARE_LINK
+        compiled = link_key in payload
+        if compiled and not isinstance(payload[link_key], str):
+            raise TypeError("compiled_firmware_link must be a string")
+
+        if (
+            self.ff_version_check_enable
+            and self.settings.PU_COMMIT_VERSION == target_version
+        ):
             self.logger.info('No update needed: current version = target version')
             return
             
@@ -172,12 +210,12 @@ class PepeunitClient:
             self.custom_update_handler(self, payload)
             return
 
-        if "COMPILED_FIRMWARE_LINK" in payload:
+        if compiled:
             raise RuntimeError(
                 "Compiled firmware updates require set_custom_update_handler()"
             )
 
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as archive:
+        with tempfile.NamedTemporaryFile(suffix=".tgz", delete=False) as archive:
             archive_path = archive.name
         try:
             self.rest_client.download_update(archive_path)
@@ -190,12 +228,12 @@ class PepeunitClient:
         
         unit_directory = os.path.dirname(self.env_file_path) or os.getcwd()
         with tempfile.TemporaryDirectory() as temp_extract_dir:
-            FileManager.extract_tar_gz(archive_path, temp_extract_dir)
+            FileManager.extract_pepeunit_archive(archive_path, temp_extract_dir)
             self.logger.info(f"Extracted archive to {temp_extract_dir}")
             
             archive_env = Path(temp_extract_dir) / ".env"
             env_name = Path(self.env_file_path).name
-            FileManager.read_env(str(archive_env))
+            FileManager.read_env(archive_env)
             if env_name != archive_env.name:
                 archive_env.replace(archive_env.with_name(env_name))
             FileManager.copy_directory_contents(temp_extract_dir, unit_directory)
@@ -204,19 +242,8 @@ class PepeunitClient:
         os.remove(archive_path)
         self.logger.info(f"Archive removed {archive_path}")
         
-        if self.restart_mode == RestartMode.RESTART_POPEN:
-            self.stop_main_cycle()
-            
-            self.logger.info('Run new main cycle in other process')
-            subprocess.Popen([sys.executable] + sys.argv)
-
-            self.logger.info('I`ll Be Back - stop this process')
-            sys.exit(0)
-        elif self.restart_mode == RestartMode.RESTART_EXEC:
-            self.stop_main_cycle()
-            
-            self.logger.info('I`ll Be Back - replacing current process')
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+        if self.restart_mode == RestartMode.RESTART_EXEC:
+            self._restart_program()
         elif self.restart_mode == RestartMode.ENV_TOPICS_ONLY:
             self.logger.info('Reloading environment and IO topics')
             self._reload_after_update()
@@ -233,18 +260,8 @@ class PepeunitClient:
         self._restart_program()
 
     def _restart_program(self) -> None:
-        if self.restart_mode == RestartMode.RESTART_POPEN:
-            self.stop_main_cycle()
-
-            self.logger.info('Run new main cycle in other process')
-            subprocess.Popen([sys.executable] + sys.argv)
-
-            self.logger.info('I`ll Be Back - stop this process')
-            sys.exit(0)
-
         self.stop_main_cycle()
-
-        self.logger.info('I`ll Be Back - replacing current process')
+        self.logger.info("Replacing current process")
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _handle_log_sync(self) -> None:
@@ -291,5 +308,5 @@ class PepeunitClient:
         self.custom_update_handler = custom_update_handler
 
     def stop_main_cycle(self) -> None:
-        self.logger.info(f'Main cycle stopped')
+        self.logger.info("Main cycle stopped")
         self._running = False

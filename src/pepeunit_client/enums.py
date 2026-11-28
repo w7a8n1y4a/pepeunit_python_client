@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 
 class LogLevel(Enum):
@@ -27,13 +27,26 @@ class BaseInputTopicType(Enum):
     RESET = "reset"
 
 
+class BackendTopicCommand(Enum):
+    UPDATE = "Update"
+    ENV_UPDATE = "EnvUpdate"
+    SCHEMA_UPDATE = "SchemaUpdate"
+    LOG_SYNC = "LogSync"
+    RESET = "Reset"
+
+
+class BackendTopicCommandKey(StrEnum):
+    COMMAND = "command"
+    COMMIT_VERSION = "pu_commit_version"
+    COMPILED_FIRMWARE_LINK = "compiled_firmware_link"
+
+
 class BaseOutputTopicType(Enum):
     LOG = "log"
     STATE = "state"
 
 
 class RestartMode(Enum):
-    RESTART_POPEN = 'restart_popen'
     RESTART_EXEC = 'restart_exec'
     ENV_TOPICS_ONLY = 'env_topics_only'
     NO_RESTART = 'no_restart'

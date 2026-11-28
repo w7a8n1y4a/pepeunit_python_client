@@ -3,21 +3,16 @@
 help:
 	@echo "Pepeunit Python Client - Commands:"
 	@echo ""
-	@echo "install-local:    Clean create dist and .venv and install package from dist" 
+	@echo "install-local:    Build and install the wheel"
 	@echo "run-build:        Run build package"
 	@echo "upload-pypi:      Upload dist to PyPi"
 	@echo "upload-test-pypi: Upload dist to Test PyPi"
 	@echo "clean:            Clean venv and dist"
 
-install-local:
-	@echo "Clean create dist and .venv and install package from dist..."
-	rm -rf .venv dist
-	python -m build
+install-local: run-build
 	python -m venv .venv
-	.venv/bin/pip install --upgrade pip
-	.venv/bin/pip install dist/*.whl
-	.venv/bin/pip install httpx paho-mqtt cryptography
-	@echo "Done! Activate with: source .venv/bin/activate.fish"
+	.venv/bin/python -m pip install --force-reinstall "$(wildcard dist/*.whl)"
+	@echo "Activate the environment with source .venv/bin/activate"
 
 run-build:
 	@echo "Run build package"

@@ -1,12 +1,16 @@
-"""
-PepeunitClient - Мультиплатформенная библиотека для работы с Pepeunit Unit Storage
-"""
+"""Python client for Pepeunit Units over MQTT and REST."""
 
-__version__ = "1.5.1"
-
-from .client import PepeunitClient
 from .abstract_clients import AbstractPepeunitMqttClient, AbstractPepeunitRestClient
-from .enums import RestartMode
 from .cipher import AesGcmCipher
+from .client import PepeunitClient
+from .enums import RestartMode
 
-__all__ = ['PepeunitClient', 'AbstractPepeunitMqttClient', 'AbstractPepeunitRestClient', 'RestartMode', 'AesGcmCipher']
+__version__ = "1.5.2"
+
+__all__ = [
+    "AbstractPepeunitMqttClient",
+    "AbstractPepeunitRestClient",
+    "AesGcmCipher",
+    "PepeunitClient",
+    "RestartMode",
+]

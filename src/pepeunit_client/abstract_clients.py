@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Callable, List, Dict, Any, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .settings import Settings
@@ -22,22 +23,18 @@ class AbstractPepeunitMqttClient(ABC):
     @abstractmethod
     def connect(self) -> None:
         """Connect to MQTT broker using settings configuration."""
-        pass
     
     @abstractmethod
     def disconnect(self) -> None:
         """Disconnect from MQTT broker."""
-        pass
     
     @abstractmethod
-    def set_subscriptions(self, topics: Dict[str, int]) -> None:
+    def set_subscriptions(self, topics: dict[str, int]) -> None:
         """Apply the current topic-to-QoS mapping for all inputs."""
-        pass
 
     @abstractmethod
     def publish(self, topic: str, message: Any, qos: int = 0) -> Any:
         """Publish the encoded payload using the specified QoS."""
-        pass
 
     @abstractmethod
     def set_input_handler(self, handler: Callable) -> None:
@@ -47,7 +44,6 @@ class AbstractPepeunitMqttClient(ABC):
         Args:
             handler: Function to handle incoming MQTT messages
         """
-        pass
 
 
 class AbstractPepeunitRestClient(ABC):
@@ -67,10 +63,8 @@ class AbstractPepeunitRestClient(ABC):
         Download firmware update archive.
         
         Args:
-            unit_uuid: UUID of the unit to download update for
             file_path: Local path where to save the downloaded file
         """
-        pass
     
     @abstractmethod
     def download_env(self, file_path: str) -> None:
@@ -80,48 +74,28 @@ class AbstractPepeunitRestClient(ABC):
         Args:
             file_path: Local path for the downloaded configuration
         """
-        pass
     
     @abstractmethod
     def get_io_topics(self) -> "IOTopics":
         """Fetch and decode the unit's io_topics.yml."""
-        pass
 
     @abstractmethod
-    def set_state_storage(self, state: Dict[str, Any]) -> None:
-        """
-        Store state data in Pepeunit Unit Storage.
-        
-        Args:
-            unit_uuid: UUID of the unit
-            state: State data to store
-        """
-        pass
+    def set_state_storage(self, state: str) -> None:
+        """Store a string in Pepeunit Unit Storage."""
     
     @abstractmethod
-    def get_state_storage(self, unit_uuid: str) -> Dict[str, Any]:
-        """
-        Retrieve state data from Pepeunit Unit Storage.
-        
-        Args:
-            unit_uuid: UUID of the unit
-            
-        Returns:
-            Retrieved state data
-        """
-        pass
+    def get_state_storage(self) -> str:
+        """Retrieve the stored string from Pepeunit Unit Storage."""
     
     @abstractmethod
-    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    def get_input_by_output(self, topic: str, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """Return the linked inputs in the response's unit_ios list."""
-        pass
 
     @abstractmethod
-    def get_units_by_ios(self, unit_io_uuids: List[str], limit: int = 100, offset: int = 0) -> Dict[str, Any]:
+    def get_units_by_ios(self, unit_io_uuids: list[str], limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """Return units filtered by UnitIO UUIDs."""
-        pass
 
-    def _get_auth_headers(self) -> Dict[str, str]:
+    def _get_auth_headers(self) -> dict[str, str]:
         """
         Get authentication headers for API requests.
         
