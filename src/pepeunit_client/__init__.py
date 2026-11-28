@@ -5,7 +5,7 @@ from .cipher import AesGcmCipher
 from .client import PepeunitClient
 from .enums import RestartMode
 
-__version__ = "1.5.2"
+__version__ = "1.5.3"
 
 __all__ = [
     "AbstractPepeunitMqttClient",

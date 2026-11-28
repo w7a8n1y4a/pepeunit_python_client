@@ -47,9 +47,9 @@ Main client class for interacting with the PepeUnit platform.
 | `set_custom_update_handler(custom_update_handler)` | Sets a handler called with `(client, payload)` for firmware updates |
 | `stop_main_cycle()` | Stops the running main cycle |
 
-The server sends commands as JSON objects with a `command` field (`Update`, `EnvUpdate`, `SchemaUpdate`, `LogSync`, or `Reset`). `Update` also carries `pu_commit_version`. For compiled firmware, install a custom update handler to use the `compiled_firmware_link` in the payload.
+The server sends commands as JSON objects with a `command` field (`Update`, `EnvUpdate`, `IOTopicsUpdate`, `LogSync`, or `Reset`). `Update` also carries `pu_commit_version`. For compiled firmware, install a custom update handler to use the `compiled_firmware_link` in the payload.
 
-`SchemaUpdate` fetches `io_topics.yml` and updates the MQTT subscriptions and output addresses. The client reapplies the latest input subscriptions on reconnect.
+`IOTopicsUpdate` fetches `io_topics.yml` and updates the MQTT subscriptions and output addresses. The client reapplies the latest input subscriptions on reconnect.
 
 `EnvUpdate` applies the typed values to `client.settings` and keeps the installed `PU_COMMIT_VERSION` until firmware is applied. REST requests use the updated settings on the next call. MQTT reads the current token on each connection attempt. Broker host, port, and keepalive are read when `connect()` is called.
 
@@ -152,7 +152,7 @@ Method | Description
 | `LogLevel` | `CRITICAL` | Critical level logging |
 | `BaseInputTopicType` | `UPDATE` | Update command topic |
 | `BaseInputTopicType` | `ENV_UPDATE` | Environment update command topic |
-| `BaseInputTopicType` | `SCHEMA_UPDATE` | IO topics update command topic |
+| `BaseInputTopicType` | `IO_TOPICS_UPDATE` | `io_topics_update` command topic |
 | `BaseInputTopicType` | `LOG_SYNC` | Log synchronization command topic |
 | `BaseInputTopicType` | `RESET` | Restart command topic |
 | `BaseOutputTopicType` | `LOG` | Log output topic |

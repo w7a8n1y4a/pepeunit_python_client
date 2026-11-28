@@ -141,7 +141,7 @@ class PepeunitClient:
 
             if command is BackendTopicCommand.ENV_UPDATE:
                 self.download_env(self.env_file_path)
-            elif command is BackendTopicCommand.SCHEMA_UPDATE:
+            elif command is BackendTopicCommand.IO_TOPICS_UPDATE:
                 self.refresh_io_topics()
             elif command is BackendTopicCommand.UPDATE:
                 self._handle_update(payload)

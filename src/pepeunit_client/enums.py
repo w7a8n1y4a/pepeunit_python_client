@@ -22,7 +22,7 @@ class LogLevel(Enum):
 class BaseInputTopicType(Enum):
     UPDATE = "update"
     ENV_UPDATE = "env_update"
-    SCHEMA_UPDATE = "schema_update"
+    IO_TOPICS_UPDATE = "io_topics_update"
     LOG_SYNC = "log_sync"
     RESET = "reset"
 
@@ -30,7 +30,7 @@ class BaseInputTopicType(Enum):
 class BackendTopicCommand(Enum):
     UPDATE = "Update"
     ENV_UPDATE = "EnvUpdate"
-    SCHEMA_UPDATE = "SchemaUpdate"
+    IO_TOPICS_UPDATE = "IOTopicsUpdate"
     LOG_SYNC = "LogSync"
     RESET = "Reset"
 
